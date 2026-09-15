@@ -96,6 +96,54 @@ npm run db:add-admin -- someone@example.com "optional note"
 Milestone 3 wires `isOrganizerEmail` into the actual request-time check
 against the signed-in Firebase user.
 
+## Firebase Auth (milestone 3)
+
+`/admin` and `/api/admin/*` are gated by a Firebase session cookie, checked
+in `src/proxy.ts` on every matching request:
+
+1. The browser signs in with Google via the Firebase client SDK (a popup —
+   `src/components/auth/sign-in-button.tsx`).
+2. It POSTs the resulting ID token to `/api/auth/session`, which verifies it
+   with the Admin SDK, checks the organizer allow-list, and — only if both
+   pass — sets an httpOnly session cookie. A valid Google sign-in from
+   someone not on the allow-list never gets a cookie at all.
+3. `src/proxy.ts` verifies that cookie on every `/admin` and `/api/admin/*`
+   request and forwards the verified email to route handlers via an
+   `x-organizer-email` header, stripping any client-supplied value for that
+   header first so it can't be spoofed.
+
+This relies on `proxy.ts` (renamed from `middleware.ts` as of this Next.js
+version) always running on the Node.js runtime — never Edge — which is what
+lets `firebase-admin` run inside it at all.
+
+**Server-side credentials are Application Default Credentials, not a
+downloaded service-account key.** On Cloud Run / Firebase App Hosting this
+resolves automatically to the service's own identity. For local development:
+
+```bash
+gcloud auth application-default login
+```
+
+Prerequisite in the Firebase console (one-time, can't be done from here):
+**Authentication → Sign-in method → enable Google.**
+
+To test locally once that's done: `npm run dev`, visit `/admin`, sign in with
+an email in `SEED_ADMIN_EMAILS` or the `admins` table. Visiting `/admin`
+signed out redirects to `/admin/login`; a valid-but-unlisted Google account
+lands on `/admin/unauthorized` instead of looping back to sign-in.
+
+### Firebase Storage
+
+`storage.rules` denies all client-side read/write — every real access path is
+server-mediated (a signed URL from an API route for uploads, milestone 7; the
+Admin SDK for reads), both of which bypass these rules entirely, so this file
+is defense-in-depth against a client SDK ever being pointed at the bucket
+directly. Deploy it with:
+
+```bash
+npx firebase deploy --only storage:rules --project <firebase-project-id>
+```
+
 ## Production build
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
@@ -119,7 +167,7 @@ Working through the milestones in §18 of the technical plan.
 
 - [x] 1. Scaffold Next.js with standalone output
 - [x] 2. Turso database + Drizzle schema and migrations
-- [ ] 3. Firebase Auth + Firebase Storage config and security rules
+- [x] 3. Firebase Auth + Firebase Storage config and security rules
 - [ ] 4. `/register` form routing, Category and Participation forms
 - [ ] 5. Category sign-up API route
 - [ ] 6. Participation sign-up API route (multi-entry)
