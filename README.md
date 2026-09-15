@@ -224,6 +224,48 @@ failure.
 Styling is Tailwind v4 + daisyUI (`@plugin "daisyui";` in `globals.css`);
 light/dark follows the visitor's OS preference automatically.
 
+## Category sign-up API route (milestone 5)
+
+`POST /api/register/category` — one transaction (`{ behavior: "immediate" }`,
+the `BEGIN IMMEDIATE` §7 asks for) creates the registration number, the
+`participants` row, the `payments` row, the `artist_photos` row, and one
+`entries` row per painting.
+
+This milestone is transaction mechanics and correct data, not business-rule
+enforcement — that's milestone 8, kept deliberately separate:
+
+- `age_category_check`, `duplicate_check`, `eligibility`, and
+  `registration_status` are left at their schema defaults (`n/a`, `clear`,
+  `pending`, `incomplete`). Nothing here decides whether a registration is
+  valid.
+- `fee_match` **is** computed and stored — `expected_amount` and
+  `declared_amount` are NOT NULL columns with no "not yet evaluated" state
+  to fall back on, unlike the text-enum columns above, which have `n/a`
+  built in for exactly this reason. A mismatch is recorded, not acted on:
+  the registration still succeeds, `fee_match` just comes back `false` for
+  the organizer to see later.
+- `src/db/registration-id.ts` generates the `[Category Code]-[Sequence]`
+  number (§7) via a single atomic `UPDATE counters SET last_sequence =
+  last_sequence + 1 RETURNING last_sequence` — safe on its own, and reused
+  by milestone 6 for `CP-` numbers. Still wrapped in the caller's own
+  `immediate` transaction so a failure elsewhere in the same submission
+  rolls the increment back too, rather than burning a sequence number with
+  no participant to show for it.
+
+Request-shape validation (via `zod`, a new dependency) is basic correctness
+— required fields, `dob` format, `paintings.length` against that category's
+`maxEntries` — not the age/duplicate/fee *enforcement* milestone 8 adds on
+top of the `fee_match` value already being stored here.
+
+Verified against a local database: valid submissions create all four
+tables correctly with the right defaults; missing consent, a malformed
+`dob`, and too many paintings for the category all return clean 400s
+before anything is written; a fee mismatch still succeeds with `fee_match:
+false` recorded. Fired **15 genuinely concurrent** registrations at the
+same category and confirmed 15 unique, gapless sequential numbers —
+directly testing the race condition §7 exists to prevent, not just
+asserting the code looks right.
+
 ## Production build
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
@@ -270,7 +312,7 @@ Working through the milestones in §18 of the technical plan.
 - [x] 2. Turso database + Drizzle schema and migrations
 - [x] 3. Firebase Auth + Firebase Storage config and security rules
 - [x] 4. `/register` form routing, Category and Participation forms
-- [ ] 5. Category sign-up API route
+- [x] 5. Category sign-up API route
 - [ ] 6. Participation sign-up API route (multi-entry)
 - [ ] 7. Signed upload URL flow
 - [ ] 8. Server-side validation (age, duplicate, fee, file)
