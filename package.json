@@ -11,7 +11,8 @@
     "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/migrate.ts",
     "db:seed": "node --env-file-if-exists=.env.local --import tsx scripts/seed.ts",
     "db:studio": "node --env-file-if-exists=.env.local --import tsx node_modules/drizzle-kit/bin.cjs studio",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:add-admin": "node --env-file-if-exists=.env.local --import tsx scripts/add-admin.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

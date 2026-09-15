@@ -69,6 +69,33 @@ Conventions worth knowing before editing the schema:
   in code. Read it via `getAgeCutoffDate()`, never raw. **The seeded value is a
   placeholder.**
 
+### Organizer allow-list
+
+§16 asks for "an organizer allow-list (env var or a small admins table)" —
+this uses both, as a union:
+
+- **`SEED_ADMIN_EMAILS`** (env var, comma-separated) — fixed until redeploy.
+  A break-glass fallback so an accidental deletion of every row in `admins`
+  can never lock every organizer out. Not mirrored into the database, on
+  purpose: if it were, deleting that row from a future CRUD screen would look
+  like it revoked access when it hadn't.
+- **The `admins` table** — organizer-editable, and what's expected to grow
+  over time. Nothing reads it directly; go through `src/db/admins.ts`
+  (`isOrganizerEmail`, `addAdminEmail`, `removeAdminEmail`,
+  `listOrganizerEmails`), which also normalises every email to lowercase so
+  a casing difference in Firebase's ID token claim can't cause a false
+  lockout.
+
+Until the admin CRUD dashboard (§15, milestone 9) covers this table, add
+someone with:
+
+```bash
+npm run db:add-admin -- someone@example.com "optional note"
+```
+
+Milestone 3 wires `isOrganizerEmail` into the actual request-time check
+against the signed-in Firebase user.
+
 ## Production build
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's

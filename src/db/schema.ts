@@ -345,6 +345,48 @@ export const settings = sqliteTable("settings", {
     .$onUpdate(() => new Date()),
 });
 
+// ---------------------------------------------------------------------------
+// admins — not in the original spec
+// ---------------------------------------------------------------------------
+
+/**
+ * The organizer-editable half of the allow-list §16 asks for: "an organizer
+ * allow-list (env var or a small admins table)". This is the table; the
+ * permanent env-var half (a small, fixed set of emails that stay authorized
+ * no matter what this table contains) lives in SEED_ADMIN_EMAILS and is
+ * read by ./admins.ts, never here — that separation exists so an accidental
+ * deletion of every row in this table can never lock every organizer out.
+ *
+ * Rows here are the ones an organizer adds and removes themselves, once the
+ * admin CRUD layer (§15) covers this table, or via `npm run db:add-admin`
+ * before then. Email is the primary key, stored lowercased — Firebase
+ * Auth's ID token email claim is compared case-insensitively against it.
+ */
+export const admins = sqliteTable(
+  "admins",
+  {
+    email: text("email").primaryKey(),
+    /** Free text — who added them / why, for the organizer's own reference. */
+    note: text("note"),
+    addedAt: integer("added_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  () => [
+    check(
+      "admins_email_format_check",
+      // A deliberately loose shape check, not a full validator — real
+      // validation happens in ./admins.ts before a row is ever written. This
+      // is just a backstop against an obviously malformed hand-edit.
+      sql.raw(`"email" LIKE '%_@_%.__%'`),
+    ),
+    check(
+      "admins_email_lowercase_check",
+      sql.raw(`"email" = lower("email")`),
+    ),
+  ],
+);
+
 export type Participant = typeof participants.$inferSelect;
 export type NewParticipant = typeof participants.$inferInsert;
 export type Payment = typeof payments.$inferSelect;
@@ -359,3 +401,5 @@ export type WhatsappUpdate = typeof whatsappUpdates.$inferSelect;
 export type NewWhatsappUpdate = typeof whatsappUpdates.$inferInsert;
 export type Counter = typeof counters.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
+export type Admin = typeof admins.$inferSelect;
+export type NewAdmin = typeof admins.$inferInsert;
