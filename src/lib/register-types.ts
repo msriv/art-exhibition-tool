@@ -31,20 +31,24 @@ export type CategoryRegistrationPayload = {
 
 export type ParticipationRegistrationPayload = {
   /**
-   * Optional — someone with no prior Category submission can use this form
-   * directly. Resolution order the server (milestone 6) applies:
-   *   1. registrationNumber given and matches an existing participant →
-   *      attach entries to that participant.
-   *   2. registrationNumber omitted (or given but not found — still open,
-   *      see README) → attempt to match an existing participant by name,
-   *      email, or mobile (the organizer's clarification on this; distinct
-   *      from §8.2's duplicate_check, which flags rather than merges).
-   *   3. No match → create a new participant with a freshly-generated
-   *      CP-nnnnn number, same counter mechanism as §7.
-   * Name/mobile/email are always collected (not just when no number is
-   * given) since they double as dedup signal even when a number is present.
+   * Present only after POST /api/register/lookup confirmed it exists (see
+   * register-lookup-types.ts). A number that doesn't resolve is a hard
+   * error on the form itself — never sent here, and never silently
+   * replaced by a name/email/mobile guess.
    */
   registrationNumber?: string;
+  /**
+   * Present only after POST /api/register/match found a candidate AND the
+   * user explicitly confirmed it's them. Mutually exclusive with
+   * registrationNumber — at most one identity-resolution path is active.
+   */
+  confirmedMatchToken?: string;
+  /**
+   * Always collected from the form. Used to create a new participant only
+   * when neither field above is present — ignored otherwise, since the
+   * server uses the existing record's stored identity rather than trusting
+   * client-resent values for an already-identified participant.
+   */
   name: string;
   mobile: string;
   email: string;

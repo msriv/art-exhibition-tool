@@ -172,26 +172,45 @@ failure.
   name/mobile/email and participant consent (§4.1 requires consent from
   every entrant, not just Category ones — missing from the first version of
   this form). Registration number is optional: someone who never submitted
-  a Category form can still use this directly. The resolution order the
-  server (milestone 6) applies is documented in full in
-  `src/lib/register-types.ts`:
-  1. Registration number given and found → attach entries to that
-     participant.
-  2. Registration number omitted (or given but not found — still an open
-     detail, see below) → attempt to match an existing participant by name,
-     email, or mobile. This is a distinct mechanism from §8.2's
-     `duplicate_check`, which flags a possible duplicate for organizer
-     review rather than merging into an existing record.
-  3. No match → create a new participant with a freshly-generated
-     `CP-nnnnn` number, the same counter mechanism as §7 — this is what
-     makes the `CP` prefix reachable at all, resolving an earlier open
-     question about whether it was dead code.
+  a Category form can still use this directly.
 
-  Still open for milestone 6: what "registration number given but not
-  found" should do — fall through to name/email/mobile matching (more
-  forgiving of a typo) or fail with an error telling them to check the
-  number. Also open: the matching strategy itself when name/email/mobile
-  don't all agree (e.g. email matches a different name).
+  Identity resolution is its own explicit phase before paintings/payment are
+  shown, and **nothing ever resolves silently** — every path ends in either
+  a human confirmation or a blocking error the person clears themselves.
+  Full contract in `src/lib/register-lookup-types.ts` and
+  `src/lib/register-types.ts`:
+  1. Registration number given → `POST /api/register/lookup`. Found →
+     identity fields lock (masked, read-only) and the form proceeds. Not
+     found → a hard error naming the problem; **never** falls through to
+     matching by name/email/mobile instead — a typo'd number must be fixed
+     or cleared, not silently reinterpreted.
+  2. Registration number omitted → `POST /api/register/match` against
+     name/email/mobile. A match shows a masked preview with explicit
+     **Yes, link this** / **No, this is new** buttons — distinct from
+     §8.2's `duplicate_check`, which flags a possible duplicate for
+     organizer review rather than merging into an existing record.
+     Email wins if email and mobile independently point to different
+     existing participants (rare, but decided).
+  3. No match, or "No" chosen above → create a new participant with a
+     freshly-generated `CP-nnnnn` number, the same counter mechanism as
+     §7 — this is what makes the `CP` prefix reachable at all.
+
+  Both endpoints return **masked previews only** (`J*** S***`,
+  `98••••••10`), never real values — a registration number is sequentially
+  guessable (`C2-00001`, `C2-00002`, …), so returning full PII from an
+  unauthenticated lookup would violate §16 and let anyone enumerate every
+  participant's contact details. The true values are used server-side at
+  final submission; the match path additionally uses a short-lived opaque
+  token rather than exposing the matched registration number to the client
+  at all.
+
+  Neither endpoint exists yet (milestone 6). A 404 on the lookup path
+  blocks with no bypass (clearing the field is the explicit way forward).
+  A 404 on the match path shows an explicit **Continue as a new
+  registration** button rather than silently proceeding — the distinction
+  matters: duplicate-matching is a nice-to-have with §8.2 as a backstop,
+  but identity resolution should never happen without the person choosing
+  it.
 
   Paintings are open-ended (sanity ceiling `PARTICIPATION_MAX_ENTRIES` = 20
   in `src/config/fees.ts` — not a business rule, just protection against a
@@ -222,7 +241,28 @@ Actual deployment is via Firebase App Hosting (see the build status below),
 which builds and rolls out from the connected GitHub branch — no Dockerfile
 or `gcloud` commands to run by hand.
 
-## Build status
+## Deferred — not in scope yet, explicitly parked
+
+Not part of the build order in §18. Raised, discussed, and deliberately
+deferred rather than built — noted here so the reasoning survives between
+sessions.
+
+- **Participant accounts.** Both spec documents assume anonymous public
+  forms; the only authenticated users are organizers via the allow-list.
+  Real accounts would mean a second, parallel auth system (Firebase Auth
+  for every participant, not a handful of organizers), a login/signup/
+  password-reset flow, and a schema link between an auth UID and a
+  `participants` row.
+- **I-Card generation.** §13 is explicit that the system never generates an
+  I-Card image — that's a manual design step in an external tool. The
+  organizer has since said the actual intent is **one I-Card template
+  design, filled in programmatically per participant** — a real reversal of
+  §13 worth resolving explicitly when this is picked back up, not just an
+  implementation detail. This also implies a participant profile page
+  (itself downstream of participant accounts existing) showing their own
+  submissions and, once generated, their I-Card.
+
+Neither is scheduled; both need their own scoping pass before starting.
 
 Working through the milestones in §18 of the technical plan.
 
