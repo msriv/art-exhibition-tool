@@ -212,7 +212,7 @@ export const entries = sqliteTable(
       .references(() => participants.id, { onDelete: "cascade" }),
 
     title: text("title").notNull(),
-    /** Firebase Storage path — the source file for poster production. */
+    /** GCS object path — the source file for poster production. */
     fileUrl: text("file_url").notNull(),
     medium: text("medium").notNull(),
     fileStatus: text("file_status", { enum: FILE_STATUSES }).notNull().default("pending"),
@@ -243,7 +243,7 @@ export const artistPhotos = sqliteTable(
       .notNull()
       .references(() => participants.id, { onDelete: "cascade" }),
 
-    /** Firebase Storage path — the source file for I-Card production. */
+    /** GCS object path — the source file for I-Card production. */
     fileUrl: text("file_url").notNull(),
     fileStatus: text("file_status", { enum: FILE_STATUSES }).notNull().default("pending"),
   },

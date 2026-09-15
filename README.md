@@ -15,8 +15,17 @@ decisions.
 | --- | --- |
 | Frontend + backend | Next.js (App Router), single Docker image on Cloud Run |
 | Database | SQLite via Turso (libSQL) with Drizzle ORM |
-| File storage | Firebase Storage |
+| File storage | Google Cloud Storage (`@google-cloud/storage`), signed URLs issued by API routes |
 | Organizer auth | Firebase Auth (Google sign-in) + organizer allow-list |
+
+Storage is plain GCS rather than Firebase Storage: uploads already go through
+server-issued signed URLs (never the Firebase client SDK or its security
+rules), and Cloud Run — already required by the chosen deployment target —
+needs a billing-enabled GCP project regardless, so Firebase Storage's "no
+billing account" rationale doesn't hold here. Using GCS directly also lets
+Cloud Run's own service account authorize storage access via IAM, with no
+separate service account key to manage for that path. Firebase Auth is
+unaffected — organizer Google sign-in has no GCS-native equivalent.
 
 ## Local development
 
@@ -74,7 +83,7 @@ Working through the milestones in §18 of the technical plan.
 
 - [x] 1. Scaffold Next.js with standalone output
 - [x] 2. Turso database + Drizzle schema and migrations
-- [ ] 3. Firebase Auth + Storage config and security rules
+- [ ] 3. Firebase Auth config + GCS bucket and IAM setup
 - [ ] 4. `/register` form routing, Category and Participation forms
 - [ ] 5. Category sign-up API route
 - [ ] 6. Participation sign-up API route (multi-entry)
