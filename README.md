@@ -168,12 +168,34 @@ failure.
   list. Guardian consent only appears once a DOB computes to under 18
   against the seeded age cutoff — a client-side hint only; the authoritative
   check (§8.1) is server-side, milestone 8.
-- **Participation form** — no DOB, no category, no photo: per the earlier
-  clarification, it only adds `entries` rows to a participant who already
-  exists from an earlier Category submission, identified by the
-  registration number they were issued. Paintings are open-ended (sanity
-  ceiling `PARTICIPATION_MAX_ENTRIES` = 20 in `src/config/fees.ts` — not a
-  business rule, just protection against a malformed request).
+- **Participation form** — no DOB, no category, no photo, but does collect
+  name/mobile/email and participant consent (§4.1 requires consent from
+  every entrant, not just Category ones — missing from the first version of
+  this form). Registration number is optional: someone who never submitted
+  a Category form can still use this directly. The resolution order the
+  server (milestone 6) applies is documented in full in
+  `src/lib/register-types.ts`:
+  1. Registration number given and found → attach entries to that
+     participant.
+  2. Registration number omitted (or given but not found — still an open
+     detail, see below) → attempt to match an existing participant by name,
+     email, or mobile. This is a distinct mechanism from §8.2's
+     `duplicate_check`, which flags a possible duplicate for organizer
+     review rather than merging into an existing record.
+  3. No match → create a new participant with a freshly-generated
+     `CP-nnnnn` number, the same counter mechanism as §7 — this is what
+     makes the `CP` prefix reachable at all, resolving an earlier open
+     question about whether it was dead code.
+
+  Still open for milestone 6: what "registration number given but not
+  found" should do — fall through to name/email/mobile matching (more
+  forgiving of a typo) or fail with an error telling them to check the
+  number. Also open: the matching strategy itself when name/email/mobile
+  don't all agree (e.g. email matches a different name).
+
+  Paintings are open-ended (sanity ceiling `PARTICIPATION_MAX_ENTRIES` = 20
+  in `src/config/fees.ts` — not a business rule, just protection against a
+  malformed request).
 - **`settings.organizer_upi_id`** — added alongside the age cutoff date; the
   forms can't render a payment step without knowing where to tell
   participants to send money. **Seeded value is a placeholder** —

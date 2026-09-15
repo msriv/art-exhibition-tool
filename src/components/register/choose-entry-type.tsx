@@ -29,8 +29,8 @@ export function ChooseEntryType() {
               <div className="card-body">
                 <h2 className="card-title text-base">Participation Only</h2>
                 <p className="text-base-content/70 text-sm">
-                  Any age, any medium. Not judged for rank. Requires the
-                  registration number from a prior sign-up.
+                  Any age, any medium. Not judged for rank. Already
+                  registered? This adds to it — otherwise it sets one up.
                 </p>
               </div>
             </Link>

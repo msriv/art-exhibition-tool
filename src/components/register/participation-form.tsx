@@ -13,14 +13,21 @@ type Props = {
 type SubmitState = { status: "idle" | "working" | "error" | "done"; message?: string };
 
 /**
- * No photo, no dob, no category here — per §6, a Participation submission
- * only adds `entries` rows to a participant who already exists from an
- * earlier Category submission (see README's "Organizer allow-list" section
- * for the parallel note on registration_number issuance). An unrecognized
- * registration number is rejected server-side once milestone 6 exists.
+ * No photo, no dob, no category here. Registration number is optional: if
+ * given, the server (milestone 6) attaches these paintings to that
+ * participant; if omitted, it tries to match an existing participant by
+ * name/email/mobile before creating a new one with a freshly-generated
+ * CP-nnnnn number. Name/mobile/email are always collected — they're needed
+ * either way, as identity for a new participant or as the dedup signal for
+ * an existing one. See src/lib/register-types.ts for the full resolution
+ * order the server applies.
  */
 export function ParticipationForm({ organizerUpiId }: Props) {
   const [registrationNumber, setRegistrationNumber] = useState("");
+  const [name, setName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
+  const [consentParticipant, setConsentParticipant] = useState(false);
   const [paintings, setPaintings] = useState<PaintingDraft[]>([emptyPaintingDraft()]);
   const [declaredRupees, setDeclaredRupees] = useState("");
   const [upiReference, setUpiReference] = useState("");
@@ -35,8 +42,12 @@ export function ParticipationForm({ organizerUpiId }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!registrationNumber.trim()) {
-      setSubmit({ status: "error", message: "Registration number is required." });
+    if (!name.trim() || !mobile.trim() || !email.trim()) {
+      setSubmit({ status: "error", message: "Name, mobile, and email are all required." });
+      return;
+    }
+    if (!consentParticipant) {
+      setSubmit({ status: "error", message: "Participant consent is required." });
       return;
     }
     if (!paymentScreenshot) {
@@ -61,7 +72,11 @@ export function ParticipationForm({ organizerUpiId }: Props) {
 
       const declaredAmountPaise = Math.round(parseFloat(declaredRupees || "0") * 100);
       const payload: ParticipationRegistrationPayload = {
-        registrationNumber: registrationNumber.trim(),
+        registrationNumber: registrationNumber.trim() || undefined,
+        name,
+        mobile,
+        email,
+        consentParticipant: true,
         paintings: paintingUploads,
         payment: { declaredAmountPaise, upiReference, paymentScreenshotUrl },
       };
@@ -111,23 +126,64 @@ export function ParticipationForm({ organizerUpiId }: Props) {
     <form onSubmit={handleSubmit} className="mx-auto max-w-2xl px-6 py-12">
       <h1 className="text-xl font-semibold tracking-tight">Participation-Only Sign-Up</h1>
       <p className="text-base-content/70 mt-2 text-sm">
-        This adds paintings to an existing registration. Haven&apos;t registered yet?{" "}
-        <a href="/register?form=category" className="link link-primary">
-          Use the Category form
-        </a>{" "}
-        first to get a registration number.
+        Already registered? Enter your registration number below so this gets added
+        to it. First time entering? Leave it blank — we&apos;ll match you by the
+        details below, or set up a new registration if we don&apos;t find one.
       </p>
 
       <label className="fieldset-label mt-6 flex-col items-start">
-        Registration number
+        Registration number (optional)
         <input
           type="text"
-          required
           value={registrationNumber}
           onChange={(e) => setRegistrationNumber(e.target.value)}
-          placeholder="e.g. C2-00147"
+          placeholder="e.g. C2-00147 — leave blank if you don't have one"
           className="input w-full"
         />
+      </label>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <label className="fieldset-label flex-col items-start">
+          Full name
+          <input
+            type="text"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="input w-full"
+          />
+        </label>
+        <label className="fieldset-label flex-col items-start">
+          Mobile number
+          <input
+            type="tel"
+            required
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+            className="input w-full"
+          />
+        </label>
+        <label className="fieldset-label flex-col items-start sm:col-span-2">
+          Email
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="input w-full"
+          />
+        </label>
+      </div>
+
+      <label className="fieldset-label mt-2">
+        <input
+          type="checkbox"
+          required
+          checked={consentParticipant}
+          onChange={(e) => setConsentParticipant(e.target.checked)}
+          className="checkbox checkbox-sm"
+        />
+        I confirm the details above are accurate and I consent to participate.
       </label>
 
       <div className="mt-6 flex flex-col gap-4">
