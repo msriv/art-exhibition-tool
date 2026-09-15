@@ -1,0 +1,800 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "c852e7b7-3a93-46c0-afc7-08488085c00c",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "artist_photos": {
+      "name": "artist_photos",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_url": {
+          "name": "file_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_status": {
+          "name": "file_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        }
+      },
+      "indexes": {
+        "artist_photos_participant_id_idx": {
+          "name": "artist_photos_participant_id_idx",
+          "columns": [
+            "participant_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "artist_photos_participant_id_participants_id_fk": {
+          "name": "artist_photos_participant_id_participants_id_fk",
+          "tableFrom": "artist_photos",
+          "tableTo": "participants",
+          "columnsFrom": [
+            "participant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "artist_photos_file_status_check": {
+          "name": "artist_photos_file_status_check",
+          "value": "\"file_status\" IN ('pending', 'valid', 'rejected')"
+        }
+      }
+    },
+    "counters": {
+      "name": "counters",
+      "columns": {
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_sequence": {
+          "name": "last_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "counters_category_check": {
+          "name": "counters_category_check",
+          "value": "\"category\" IN ('1', '2', '3', 'participation')"
+        },
+        "counters_last_sequence_check": {
+          "name": "counters_last_sequence_check",
+          "value": "\"last_sequence\" >= 0"
+        }
+      }
+    },
+    "entries": {
+      "name": "entries",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_url": {
+          "name": "file_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "medium": {
+          "name": "medium",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_status": {
+          "name": "file_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "entries_participant_id_idx": {
+          "name": "entries_participant_id_idx",
+          "columns": [
+            "participant_id"
+          ],
+          "isUnique": false
+        },
+        "entries_submitted_at_idx": {
+          "name": "entries_submitted_at_idx",
+          "columns": [
+            "submitted_at"
+          ],
+          "isUnique": false
+        },
+        "entries_file_status_idx": {
+          "name": "entries_file_status_idx",
+          "columns": [
+            "file_status"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "entries_participant_id_participants_id_fk": {
+          "name": "entries_participant_id_participants_id_fk",
+          "tableFrom": "entries",
+          "tableTo": "participants",
+          "columnsFrom": [
+            "participant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "entries_file_status_check": {
+          "name": "entries_file_status_check",
+          "value": "\"file_status\" IN ('pending', 'valid', 'rejected')"
+        }
+      }
+    },
+    "participants": {
+      "name": "participants",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "registration_number": {
+          "name": "registration_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "entry_id": {
+          "name": "entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "dob": {
+          "name": "dob",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mobile": {
+          "name": "mobile",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "consent_participant": {
+          "name": "consent_participant",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "consent_guardian": {
+          "name": "consent_guardian",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "age_category_check": {
+          "name": "age_category_check",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'n/a'"
+        },
+        "duplicate_check": {
+          "name": "duplicate_check",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'clear'"
+        },
+        "eligibility": {
+          "name": "eligibility",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "rejection_reason": {
+          "name": "rejection_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "registration_status": {
+          "name": "registration_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'incomplete'"
+        },
+        "i_card_status": {
+          "name": "i_card_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'not_started'"
+        },
+        "poster_status": {
+          "name": "poster_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'not_started'"
+        },
+        "prize_status": {
+          "name": "prize_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "refund_status": {
+          "name": "refund_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'not_applicable'"
+        },
+        "courier_tracking": {
+          "name": "courier_tracking",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "dispatch_date": {
+          "name": "dispatch_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "admin_remarks": {
+          "name": "admin_remarks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "participants_registration_number_idx": {
+          "name": "participants_registration_number_idx",
+          "columns": [
+            "registration_number"
+          ],
+          "isUnique": true
+        },
+        "participants_entry_id_idx": {
+          "name": "participants_entry_id_idx",
+          "columns": [
+            "entry_id"
+          ],
+          "isUnique": true
+        },
+        "participants_mobile_idx": {
+          "name": "participants_mobile_idx",
+          "columns": [
+            "mobile"
+          ],
+          "isUnique": false
+        },
+        "participants_email_idx": {
+          "name": "participants_email_idx",
+          "columns": [
+            "email"
+          ],
+          "isUnique": false
+        },
+        "participants_category_idx": {
+          "name": "participants_category_idx",
+          "columns": [
+            "category"
+          ],
+          "isUnique": false
+        },
+        "participants_eligibility_idx": {
+          "name": "participants_eligibility_idx",
+          "columns": [
+            "eligibility"
+          ],
+          "isUnique": false
+        },
+        "participants_registration_status_idx": {
+          "name": "participants_registration_status_idx",
+          "columns": [
+            "registration_status"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "participants_category_check": {
+          "name": "participants_category_check",
+          "value": "\"category\" IN ('1', '2', '3', 'participation')"
+        },
+        "participants_source_check": {
+          "name": "participants_source_check",
+          "value": "\"source\" IN ('category_form', 'participation_form')"
+        },
+        "participants_age_category_check": {
+          "name": "participants_age_category_check",
+          "value": "\"age_category_check\" IN ('pass', 'flag', 'n/a')"
+        },
+        "participants_eligibility_check": {
+          "name": "participants_eligibility_check",
+          "value": "\"eligibility\" IN ('pending', 'eligible', 'rejected')"
+        },
+        "participants_registration_status_check": {
+          "name": "participants_registration_status_check",
+          "value": "\"registration_status\" IN ('incomplete', 'complete')"
+        },
+        "participants_i_card_status_check": {
+          "name": "participants_i_card_status_check",
+          "value": "\"i_card_status\" IN ('not_started', 'in_progress', 'prepared')"
+        },
+        "participants_poster_status_check": {
+          "name": "participants_poster_status_check",
+          "value": "\"poster_status\" IN ('not_started', 'in_progress', 'included')"
+        },
+        "participants_prize_status_check": {
+          "name": "participants_prize_status_check",
+          "value": "\"prize_status\" IS NULL OR \"prize_status\" IN ('announced', 'certificate_ready')"
+        },
+        "participants_refund_status_check": {
+          "name": "participants_refund_status_check",
+          "value": "\"refund_status\" IN ('not_applicable', 'approved', 'denied')"
+        },
+        "participants_dob_format_check": {
+          "name": "participants_dob_format_check",
+          "value": "\"dob\" IS NULL OR \"dob\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        },
+        "participants_dispatch_date_format_check": {
+          "name": "participants_dispatch_date_format_check",
+          "value": "\"dispatch_date\" IS NULL OR \"dispatch_date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        }
+      }
+    },
+    "payments": {
+      "name": "payments",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "declared_amount": {
+          "name": "declared_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expected_amount": {
+          "name": "expected_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fee_match": {
+          "name": "fee_match",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "upi_reference": {
+          "name": "upi_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payment_screenshot_url": {
+          "name": "payment_screenshot_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "verification_status": {
+          "name": "verification_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "payments_participant_id_idx": {
+          "name": "payments_participant_id_idx",
+          "columns": [
+            "participant_id"
+          ],
+          "isUnique": false
+        },
+        "payments_upi_reference_idx": {
+          "name": "payments_upi_reference_idx",
+          "columns": [
+            "upi_reference"
+          ],
+          "isUnique": false
+        },
+        "payments_verification_status_idx": {
+          "name": "payments_verification_status_idx",
+          "columns": [
+            "verification_status"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "payments_participant_id_participants_id_fk": {
+          "name": "payments_participant_id_participants_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "participants",
+          "columnsFrom": [
+            "participant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "payments_verification_status_check": {
+          "name": "payments_verification_status_check",
+          "value": "\"verification_status\" IN ('pending', 'verified', 'unmatched')"
+        },
+        "payments_declared_amount_check": {
+          "name": "payments_declared_amount_check",
+          "value": "\"declared_amount\" >= 0"
+        },
+        "payments_expected_amount_check": {
+          "name": "payments_expected_amount_check",
+          "value": "\"expected_amount\" >= 0"
+        }
+      }
+    },
+    "scores": {
+      "name": "scores",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "entry_id": {
+          "name": "entry_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "score": {
+          "name": "score",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "scoring_complete": {
+          "name": "scoring_complete",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "scores_entry_id_idx": {
+          "name": "scores_entry_id_idx",
+          "columns": [
+            "entry_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "scores_entry_id_entries_id_fk": {
+          "name": "scores_entry_id_entries_id_fk",
+          "tableFrom": "scores",
+          "tableTo": "entries",
+          "columnsFrom": [
+            "entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "scores_score_check": {
+          "name": "scores_score_check",
+          "value": "\"score\" >= 0"
+        }
+      }
+    },
+    "settings": {
+      "name": "settings",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "whatsapp_updates": {
+      "name": "whatsapp_updates",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stage": {
+          "name": "stage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "marked_sent_at": {
+          "name": "marked_sent_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "whatsapp_updates_participant_stage_idx": {
+          "name": "whatsapp_updates_participant_stage_idx",
+          "columns": [
+            "participant_id",
+            "stage"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "whatsapp_updates_participant_id_participants_id_fk": {
+          "name": "whatsapp_updates_participant_id_participants_id_fk",
+          "tableFrom": "whatsapp_updates",
+          "tableTo": "participants",
+          "columnsFrom": [
+            "participant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "whatsapp_updates_stage_check": {
+          "name": "whatsapp_updates_stage_check",
+          "value": "\"stage\" IN ('registered', 'accepted', 'results', 'dispatched')"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

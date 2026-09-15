@@ -42,3 +42,7 @@ next-env.d.ts
 
 # keep the checked-in template, ignore real env files
 !.env.example
+
+# local sqlite database
+local.db
+local.db-*

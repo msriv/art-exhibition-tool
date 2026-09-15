@@ -22,10 +22,40 @@ decisions.
 
 ```bash
 npm install
+cp .env.example .env.local     # defaults to a local SQLite file
+npm run db:migrate             # create the schema
+npm run db:seed                # counters + default settings
 npm run dev
 ```
 
 The app runs on http://localhost:3000.
+
+### Database
+
+The same libSQL driver serves local development and Turso — only
+`TURSO_DATABASE_URL` differs (`file:./local.db` vs `libsql://...`), so no code
+changes when switching.
+
+| Script | Purpose |
+| --- | --- |
+| `npm run db:generate` | Generate a migration from `src/db/schema.ts` |
+| `npm run db:migrate` | Apply pending migrations |
+| `npm run db:seed` | Seed counters and default settings (idempotent) |
+| `npm run db:studio` | Browse the database in Drizzle Studio |
+| `npm run typecheck` | `tsc --noEmit` |
+
+Conventions worth knowing before editing the schema:
+
+- **Money is stored in paise** as an integer, formatted to rupees in the UI.
+- **Calendar dates** (`dob`, `dispatch_date`) are `'YYYY-MM-DD'` TEXT; **points
+  in time** (`submitted_at`, `verified_at`, `updated_at`) are epoch seconds.
+- Enumerated columns carry a CHECK constraint as well as a TypeScript union,
+  because the admin dashboard writes arbitrary fields.
+- `payments.upi_reference` is deliberately **not** unique — §8.2 requires a
+  reused reference to be accepted and flagged, not rejected.
+- The age cutoff date lives in the `settings` table (organizer-editable), not
+  in code. Read it via `getAgeCutoffDate()`, never raw. **The seeded value is a
+  placeholder.**
 
 ## Production build
 
@@ -43,7 +73,7 @@ PORT=8080 node .next/standalone/server.js
 Working through the milestones in §18 of the technical plan.
 
 - [x] 1. Scaffold Next.js with standalone output
-- [ ] 2. Turso database + Drizzle schema and migrations
+- [x] 2. Turso database + Drizzle schema and migrations
 - [ ] 3. Firebase Auth + Storage config and security rules
 - [ ] 4. `/register` form routing, Category and Participation forms
 - [ ] 5. Category sign-up API route
