@@ -170,10 +170,7 @@ export function ParticipationForm({ organizerUpiId }: Props) {
       });
 
       if (response.status === 404) {
-        setSubmit({
-          status: "error",
-          message: "Registration isn't live yet — this endpoint hasn't been built (milestone 6).",
-        });
+        setSubmit({ status: "error", message: "Something went wrong on our end — please try again." });
         return;
       }
       if (!response.ok) {
@@ -283,14 +280,14 @@ export function ParticipationForm({ organizerUpiId }: Props) {
       {resolution.kind === "lookupUnavailable" && (
         <div role="alert" className="alert alert-warning alert-soft mt-3 text-sm">
           <span>
-            We can&apos;t verify registration numbers yet (milestone 6 isn&apos;t deployed).
-            Clear the field to continue as a new registration, or try again later.
+            We couldn&apos;t verify that registration number right now. Clear the field to
+            continue as a new registration, or try again in a moment.
           </span>
         </div>
       )}
       {resolution.kind === "matchUnavailable" && (
         <div role="alert" className="alert alert-info alert-soft mt-3 flex-col items-start gap-2 text-sm">
-          <span>Duplicate checking isn&apos;t live yet (milestone 6 isn&apos;t deployed).</span>
+          <span>Duplicate checking isn&apos;t available right now.</span>
           <button
             type="button"
             className="btn btn-outline btn-sm"

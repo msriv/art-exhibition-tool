@@ -1,24 +1,23 @@
 "use client";
 
 /**
- * Uploads a file straight to storage via a short-lived signed URL (§3, §8.4).
+ * Uploads a file straight to storage via a short-lived signed URL (§3, §8.4)
+ * from POST /api/upload-url (milestone 7). MIME type and size are checked
+ * before the URL is issued; the pixel-resolution check for I-Card/poster
+ * printing and any re-check once the upload finishes are milestone 8 — see
+ * that route's comments for why.
  *
- * The signed-URL endpoint (POST /api/upload-url) and its server-side MIME/
- * size/resolution checks are milestone 7 — they don't exist yet. This is
- * written against the real, intended contract rather than stubbed, so it
- * starts working the moment that endpoint lands with no changes here. Until
- * then it fails with a clear, catchable error instead of a raw fetch
- * exception, which the calling form surfaces to the user.
+ * The 404 handling below predates the route's existence and is now mostly
+ * defensive (a mid-deploy version mismatch, a future rename) rather than
+ * the expected path — kept because it degrades to a clear, catchable error
+ * instead of a raw fetch exception either way.
  */
 
 export type UploadKind = "artist_photo" | "artwork" | "payment_screenshot";
 
 export class UploadNotAvailableError extends Error {
   constructor() {
-    super(
-      "File upload isn't available yet — this will start working once the signed-upload-URL " +
-        "endpoint (milestone 7) is deployed.",
-    );
+    super("File upload isn't available right now — please try again in a moment.");
     this.name = "UploadNotAvailableError";
   }
 }

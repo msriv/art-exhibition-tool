@@ -108,10 +108,7 @@ export function CategoryForm({ ageCutoffDate, organizerUpiId }: Props) {
       });
 
       if (response.status === 404) {
-        setSubmit({
-          status: "error",
-          message: "Registration isn't live yet — this endpoint hasn't been built (milestone 5).",
-        });
+        setSubmit({ status: "error", message: "Something went wrong on our end — please try again." });
         return;
       }
       if (!response.ok) {

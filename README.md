@@ -328,6 +328,64 @@ Verified against a local database:
   `C1`/`C2`/`C3`, now confirmed for the `CP` path specifically, which is
   what actually makes that prefix reachable.
 
+## Signed upload URL flow (milestone 7)
+
+`POST /api/upload-url` — issues a V4 signed write URL so the browser
+uploads a file straight to Firebase Storage; the file never passes through
+this server (§3), which is what avoids Next.js's own request-size limits.
+`src/lib/upload.ts` (written in milestone 4, before this route existed)
+calls it exactly as designed with no changes needed now that it's real.
+
+Scope is deliberately limited to the flow mechanics, not the file checks
+§8.4 also describes — those need the actual file bytes, which don't exist
+until after the signed URL is used, and are explicitly milestone 8's job:
+
+- **Checked here**: content type is one of JPEG/PNG/WebP, and size is under
+  a per-kind cap (10–15MB — a generous default, not a business rule; no
+  source has said what's too large). Both gate whether a signed URL is
+  issued at all.
+- **Not checked here, deliberately deferred**: the minimum pixel-resolution
+  check (1200×1600 for photos, 2000px long edge for artwork) needs a
+  library like `sharp` inspecting real bytes — milestone 8. Also open: the
+  second MIME/size check §8.4 wants "once the client reports the upload as
+  complete" has no obvious home yet, since milestones 5/6 currently trust
+  `fileUrl` as an opaque string with no re-verification against Storage at
+  all. Worth deciding then whether that's a confirmation endpoint after
+  upload or a check at final registration submission.
+
+Design choices:
+- `fileUrl` returned is a **bucket-relative object path**, not a URL —
+  matching how the schema already documents these columns ("Firebase
+  Storage path"). Reading it back later (e.g. an admin dashboard preview)
+  means generating a fresh signed *read* URL server-side, the same pattern
+  as this route uses for writes — nothing about the path is ever public.
+- The object name is a random UUID, not anything derived from the
+  participant — uploads happen *before* the registration transaction
+  commits, so there's no participant to key it to yet, and a
+  content-addressed or sequential name would either collide or leak
+  submission volume.
+- The signed URL's `contentType` is bound into the signature itself (V4
+  signing), so the actual PUT is rejected by Google Cloud Storage outright
+  if the browser sends a different `Content-Type` header than what was
+  validated at issuance — an extra enforcement layer beyond the pre-check.
+
+Verified: valid requests attempt real signed-URL generation and fail
+cleanly (this sandbox has no live Firebase credentials — same ADC gap
+already documented for Firebase Auth in milestone 3, and it resolves the
+same way once deployed) rather than crashing; unsupported content types,
+oversized files, and an invalid `kind` all return clean 400s before
+reaching Firebase at all. Ran the **full Category form** end-to-end
+through a real browser (Playwright) with actual file uploads attached —
+confirmed it correctly collects every field, calls `/api/upload-url` for
+each file, and surfaces the resulting failure in the form's error UI with
+no crash. That's as far as this can be verified without a real Firebase
+project; the success path (an actual signed PUT completing) needs one.
+
+Also cleaned up the two forms' error messages that referenced "milestone 5
+isn't built" / "milestone 6 isn't deployed" — stale now that those routes
+exist, and misleading if a 404 ever legitimately occurred for some other
+reason.
+
 ## Production build
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
@@ -376,7 +434,7 @@ Working through the milestones in §18 of the technical plan.
 - [x] 4. `/register` form routing, Category and Participation forms
 - [x] 5. Category sign-up API route
 - [x] 6. Participation sign-up API route (multi-entry)
-- [ ] 7. Signed upload URL flow
+- [x] 7. Signed upload URL flow
 - [ ] 8. Server-side validation (age, duplicate, fee, file)
 - [ ] 9. Reusable admin CRUD table + all resources behind auth
 - [ ] 10. UPI statement CSV reconciliation
