@@ -44,6 +44,12 @@ export async function getAgeCutoffDate(): Promise<string> {
   return definition.parse(await readSetting(definition.key), definition.key);
 }
 
+/** The UPI ID shown to participants on the payment step. */
+export async function getOrganizerUpiId(): Promise<string> {
+  const definition = SETTING_DEFINITIONS[SETTING_KEYS.ORGANIZER_UPI_ID];
+  return definition.parse(await readSetting(definition.key), definition.key);
+}
+
 /** Writes a setting after validating it, so the admin UI can't store a bad value. */
 export async function updateSetting(key: SettingKey, rawValue: string): Promise<void> {
   const definition = SETTING_DEFINITIONS[key];

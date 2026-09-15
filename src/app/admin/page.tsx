@@ -20,14 +20,13 @@ export default async function AdminPage() {
           <h1 className="text-xl font-semibold tracking-tight">{PLATFORM_NAME} — Admin</h1>
           <SignOutButton />
         </div>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Signed in as {organizerEmail}.
-        </p>
-        <p className="mt-8 text-sm text-zinc-500">
-          The admin CRUD dashboard isn&apos;t built yet — this page only
-          confirms that Firebase Auth and the organizer allow-list are wired
-          up correctly.
-        </p>
+        <p className="text-base-content/70 mt-2 text-sm">Signed in as {organizerEmail}.</p>
+        <div role="alert" className="alert alert-info alert-soft mt-8 text-sm">
+          <span>
+            The admin CRUD dashboard isn&apos;t built yet — this page only confirms
+            that Firebase Auth and the organizer allow-list are wired up correctly.
+          </span>
+        </div>
       </main>
     </div>
   );

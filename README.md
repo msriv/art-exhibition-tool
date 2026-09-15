@@ -17,6 +17,7 @@ decisions.
 | Database | SQLite via Turso (libSQL) with Drizzle ORM |
 | File storage | Firebase Storage, signed URLs issued by API routes |
 | Organizer auth | Firebase Auth (Google sign-in) + organizer allow-list |
+| UI | Tailwind v4 + daisyUI |
 
 Everything except the database now lives under one Firebase project — Auth,
 Storage, and App Hosting — for a single console to administer. App Hosting
@@ -144,6 +145,44 @@ directly. Deploy it with:
 npx firebase deploy --only storage:rules --project <firebase-project-id>
 ```
 
+## Public registration (milestone 4)
+
+`/register` serves both sign-up forms from one route via a `?form=` query
+param (§3) — `category` and `participation` render the two forms below;
+anything else, including no param at all, falls back to a chooser page. The
+allow-list check happens server-side in `src/app/register/page.tsx`, not on
+the client.
+
+**The forms submit to endpoints that don't exist yet.** `POST
+/api/register/category` (milestone 5), `POST /api/register/participation`
+(milestone 6), and `POST /api/upload-url` (milestone 7) are all still
+missing — the forms are written against their real, intended contracts
+(`src/lib/register-types.ts`, `src/lib/upload.ts`) rather than stubbed, so
+they start working with no changes once those routes land. Until then,
+submitting shows a clear "not live yet" message instead of a raw fetch
+failure.
+
+- **Category form** — one submission covers participant details, up to two
+  paintings (capped per `CATEGORY_FEES[category].maxEntries`, §9), a photo,
+  and payment. Medium is a select constrained to that category's allowed
+  list. Guardian consent only appears once a DOB computes to under 18
+  against the seeded age cutoff — a client-side hint only; the authoritative
+  check (§8.1) is server-side, milestone 8.
+- **Participation form** — no DOB, no category, no photo: per the earlier
+  clarification, it only adds `entries` rows to a participant who already
+  exists from an earlier Category submission, identified by the
+  registration number they were issued. Paintings are open-ended (sanity
+  ceiling `PARTICIPATION_MAX_ENTRIES` = 20 in `src/config/fees.ts` — not a
+  business rule, just protection against a malformed request).
+- **`settings.organizer_upi_id`** — added alongside the age cutoff date; the
+  forms can't render a payment step without knowing where to tell
+  participants to send money. **Seeded value is a placeholder** —
+  `replace-with-organizer-upi-id@upi` — set the real one before the forms go
+  live.
+
+Styling is Tailwind v4 + daisyUI (`@plugin "daisyui";` in `globals.css`);
+light/dark follows the visitor's OS preference automatically.
+
 ## Production build
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
@@ -168,7 +207,7 @@ Working through the milestones in §18 of the technical plan.
 - [x] 1. Scaffold Next.js with standalone output
 - [x] 2. Turso database + Drizzle schema and migrations
 - [x] 3. Firebase Auth + Firebase Storage config and security rules
-- [ ] 4. `/register` form routing, Category and Participation forms
+- [x] 4. `/register` form routing, Category and Participation forms
 - [ ] 5. Category sign-up API route
 - [ ] 6. Participation sign-up API route (multi-entry)
 - [ ] 7. Signed upload URL flow

@@ -48,16 +48,16 @@ export function SignInButton() {
   }
 
   return (
-    <div className="flex flex-col items-start gap-3">
-      <button
-        type="button"
-        onClick={handleSignIn}
-        disabled={isSigningIn}
-        className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-      >
+    <div className="flex flex-col items-center gap-3">
+      <button type="button" onClick={handleSignIn} disabled={isSigningIn} className="btn btn-primary">
+        {isSigningIn && <span className="loading loading-spinner loading-sm" />}
         {isSigningIn ? "Signing in…" : "Sign in with Google"}
       </button>
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && (
+        <div role="alert" className="alert alert-error alert-soft text-sm">
+          <span>{error}</span>
+        </div>
+      )}
     </div>
   );
 }

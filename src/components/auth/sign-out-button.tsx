@@ -15,12 +15,7 @@ export function SignOutButton() {
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleSignOut}
-      disabled={isSigningOut}
-      className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-    >
+    <button type="button" onClick={handleSignOut} disabled={isSigningOut} className="btn btn-outline btn-sm">
       {isSigningOut ? "Signing out…" : "Sign out"}
     </button>
   );

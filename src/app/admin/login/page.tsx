@@ -3,16 +3,20 @@ import { SignInButton } from "@/components/auth/sign-in-button";
 
 export default function AdminLoginPage() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
-      <main className="w-full max-w-sm text-center">
-        <h1 className="text-xl font-semibold tracking-tight">{PLATFORM_NAME}</h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Organizer sign-in. Only approved Google accounts can access this section.
-        </p>
-        <div className="mt-6 flex justify-center">
-          <SignInButton />
+    <div className="hero flex-1">
+      <div className="hero-content text-center">
+        <div className="card bg-base-200 w-full max-w-sm">
+          <div className="card-body items-center">
+            <h1 className="card-title">{PLATFORM_NAME}</h1>
+            <p className="text-base-content/70 text-sm">
+              Organizer sign-in. Only approved Google accounts can access this section.
+            </p>
+            <div className="card-actions mt-2">
+              <SignInButton />
+            </div>
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
