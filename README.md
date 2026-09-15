@@ -13,19 +13,22 @@ decisions.
 
 | Layer | Choice |
 | --- | --- |
-| Frontend + backend | Next.js (App Router), single Docker image on Cloud Run |
+| Frontend + backend | Next.js (App Router), deployed via Firebase App Hosting |
 | Database | SQLite via Turso (libSQL) with Drizzle ORM |
-| File storage | Google Cloud Storage (`@google-cloud/storage`), signed URLs issued by API routes |
+| File storage | Firebase Storage, signed URLs issued by API routes |
 | Organizer auth | Firebase Auth (Google sign-in) + organizer allow-list |
 
-Storage is plain GCS rather than Firebase Storage: uploads already go through
-server-issued signed URLs (never the Firebase client SDK or its security
-rules), and Cloud Run — already required by the chosen deployment target —
-needs a billing-enabled GCP project regardless, so Firebase Storage's "no
-billing account" rationale doesn't hold here. Using GCS directly also lets
-Cloud Run's own service account authorize storage access via IAM, with no
-separate service account key to manage for that path. Firebase Auth is
-unaffected — organizer Google sign-in has no GCS-native equivalent.
+Everything except the database now lives under one Firebase project — Auth,
+Storage, and App Hosting — for a single console to administer. App Hosting
+provisions and deploys to Cloud Run under the hood (Cloud Build handles the
+image, so no hand-written Dockerfile), rolling out on push to the connected
+GitHub branch rather than a manual `gcloud run deploy`. It requires the
+Blaze (billing-enabled) plan, same as Cloud Run directly — this move is
+about console consolidation, not cost. The database stays on Turso: it's
+free indefinitely with the same relational querying the admin CRUD layer
+(§15) needs, and a Firebase-native relational option (SQL Connect / Cloud
+SQL for Postgres) costs roughly $9–10+/month after its 3-month trial, so it
+wasn't worth it for a database that already works.
 
 ## Local development
 
@@ -68,8 +71,10 @@ Conventions worth knowing before editing the schema:
 
 ## Production build
 
-`next.config.ts` sets `output: 'standalone'` so the build emits a
-self-contained server for the Docker image:
+`next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
+not what App Hosting's own Cloud Build pipeline uses, but it's a quick way to
+confirm the app actually builds and runs as a production server before
+pushing:
 
 ```bash
 npm run build
@@ -77,13 +82,17 @@ cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/
 PORT=8080 node .next/standalone/server.js
 ```
 
+Actual deployment is via Firebase App Hosting (see the build status below),
+which builds and rolls out from the connected GitHub branch — no Dockerfile
+or `gcloud` commands to run by hand.
+
 ## Build status
 
 Working through the milestones in §18 of the technical plan.
 
 - [x] 1. Scaffold Next.js with standalone output
 - [x] 2. Turso database + Drizzle schema and migrations
-- [ ] 3. Firebase Auth config + GCS bucket and IAM setup
+- [ ] 3. Firebase Auth + Firebase Storage config and security rules
 - [ ] 4. `/register` form routing, Category and Participation forms
 - [ ] 5. Category sign-up API route
 - [ ] 6. Participation sign-up API route (multi-entry)
@@ -93,6 +102,6 @@ Working through the milestones in §18 of the technical plan.
 - [ ] 10. UPI statement CSV reconciliation
 - [ ] 11. Scoring and rank computation
 - [ ] 12. WhatsApp message text + manual send log
-- [ ] 13. Dockerfile and container verification
+- [ ] 13. Verify production build locally; configure `apphosting.yaml`
 - [ ] 14. Dry run of ~20 registrations
-- [ ] 15. Artifact Registry push and Cloud Run deploy
+- [ ] 15. Connect GitHub repo to a Firebase App Hosting backend; deploy
