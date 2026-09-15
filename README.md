@@ -386,6 +386,88 @@ isn't built" / "milestone 6 isn't deployed" — stale now that those routes
 exist, and misleading if a 404 ever legitimately occurred for some other
 reason.
 
+## Server-side validation (milestone 8)
+
+Layers §8's business-rule checks onto the transaction mechanics milestones
+5–7 already built. `src/db/registration-validation.ts` and
+`src/db/file-validation.ts` hold the logic; the Category and Participation
+routes call into it.
+
+**Every check records an outcome — none of them block a registration from
+being created.** A flagged submission still exists in the database, just
+`'pending'` instead of `'eligible'`, for an organizer to clear manually
+once the admin dashboard (§15, milestone 9) exists. This matches how
+`fee_match` already worked since milestone 5.
+
+- **Age vs. category (§8.1)** — Category 1/2/3 only, computed fresh against
+  the organizer-editable cutoff date (never cached) on every submission.
+  `'flag'` if the dob doesn't land in the selected category's band.
+- **Duplicate detection (§8.2)** — an existing participant sharing a mobile
+  or email, or an existing payment reusing the same `upi_reference`, flags
+  with a message naming which signal matched and which existing
+  registration it matched against. Runs *inside* the `{ behavior:
+  "immediate" }` transaction (not before it), which is what stops two
+  near-simultaneous submissions from each checking against a database that
+  doesn't yet contain the other's uncommitted row — the same protection §7
+  already relies on for the sequence counter, extended here by running in
+  the same transaction. Verified directly: fired two genuinely concurrent
+  submissions sharing an email and confirmed exactly one came back
+  `'clear'`, never both.
+- **Eligibility** — `'eligible'` only once age (or `'n/a'` for
+  Participation, which collects no dob), duplicate, and fee checks all
+  pass. Only applies to a *new* participant being created — a Participation
+  submission attaching to an existing one (by registration number or
+  confirmed match) never re-evaluates or overwrites that participant's own
+  state; re-reviewing an already-`'pending'` participant is an
+  organizer/admin-dashboard concern, not something a later top-up
+  submission does on its own. Verified: adding a painting to an
+  already-`'eligible'` participant left their `entry_id`, `eligibility`,
+  and `registration_status` completely untouched.
+- **`entry_id` assignment** — resolved as its own explicit decision this
+  session: a *fresh draw* from the same per-category counter §7 already
+  uses for `registration_number`, taken only once a registration becomes
+  eligible — not a copy of `registration_number`. `registration_number` has
+  gaps from anyone who registers but never gets approved; `entry_id`
+  doesn't, since it's only ever drawn for someone who actually made it
+  through. That keeps whatever ends up printed on I-Cards, posters, and the
+  exhibition catalogue dense and sequential. Confirmed directly: an
+  eligible Category 2 registration came back as `registration_number:
+  C2-00001, entry_id: C2-00002` — two separate draws from the same
+  counter, not the same value twice.
+- **File checks (§8.4)** — MIME type, size, and (for artist photos and
+  artwork only — payment screenshots have no print requirement) minimum
+  pixel resolution via `sharp`, run against the real object in Storage
+  right before its `entries`/`artist_photos` row is written. This resolves
+  the open design question from milestone 7's write-up: not a separate
+  "upload finished" confirmation endpoint, since nothing existed yet at
+  that point for it to update — instead it runs exactly when the row that
+  needs a `file_status` is about to be created. Runs *before* the
+  transaction opens (a Storage network call, same reasoning as duplicate
+  detection's placement is the opposite: that one needs to be inside the
+  lock, this one needs to not hold it).
+
+**A real bug found and fixed while testing this**, worth knowing about
+beyond just file checks: the first version of `validateUploadedFile`
+assumed a Storage call would throw cleanly if credentials were missing —
+true for `getSignedUrl` (milestone 7), but **not** for `File.exists()`.
+With no credentials at all, a Storage request goes out with no
+`Authorization` header, and Google's API responds to that anonymous
+request with a plain 404 ("bucket does not exist") rather than a 401/403 —
+it doesn't reveal a private bucket's existence to an unauthenticated
+caller. `exists()` resolves that straight to `false`, indistinguishable
+from a real, checked absence — every file in this sandbox came back
+`'rejected'` on the first test run, not the `'pending'` the design called
+for. Fixed by proactively confirming a working credential
+(`assertAdminCredentialsAvailable` in `src/lib/firebase/admin.ts`, calling
+`getAccessToken()` directly — the one operation that needs the credential
+itself before any network call, so it fails the way you'd want: loudly and
+specifically) *before* trusting any read result, rather than trying to
+infer "no credentials" from an ambiguous response after the fact. Same
+sandbox ADC gap as milestones 3 and 7 — resolves the same way once
+deployed — but this is the one place it could have silently produced a
+wrong, misleading result instead of an obviously-broken one, so it was
+worth catching now rather than in production.
+
 ## Production build
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
@@ -435,7 +517,7 @@ Working through the milestones in §18 of the technical plan.
 - [x] 5. Category sign-up API route
 - [x] 6. Participation sign-up API route (multi-entry)
 - [x] 7. Signed upload URL flow
-- [ ] 8. Server-side validation (age, duplicate, fee, file)
+- [x] 8. Server-side validation (age, duplicate, fee, file)
 - [ ] 9. Reusable admin CRUD table + all resources behind auth
 - [ ] 10. UPI statement CSV reconciliation
 - [ ] 11. Scoring and rank computation

@@ -2,21 +2,31 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { CATEGORY_FEES, computeExpectedAmountPaise } from "@/config/fees";
 import { db } from "@/db/client";
-import { artistPhotos, entries, participants, payments } from "@/db/schema";
+import { validateUploadedFileOrPending } from "@/db/file-validation";
 import { generateSequentialId } from "@/db/registration-id";
+import { checkAgeCategory, checkDuplicate, computeEligibility } from "@/db/registration-validation";
+import { artistPhotos, entries, participants, payments } from "@/db/schema";
+import { getAgeCutoffDate } from "@/db/settings";
 
 /**
  * Category (1/2/3) sign-up (§5): creates participant + payment + entries +
- * artist_photo in one transaction.
+ * artist_photo in one transaction, now with the business-rule checks §8
+ * describes (age-vs-category, duplicate detection) layered onto the
+ * transaction mechanics milestone 5 built.
  *
- * This is milestone 5's scope — the transaction mechanics and correct data.
- * The business-rule checks §8 describes (age-vs-category, duplicate
- * detection, fee-match enforcement, file validation) are milestone 8:
- * fee_match is computed and stored here because payments.fee_match is a
- * NOT NULL column with no "not yet evaluated" state to fall back on, but a
- * mismatch does not block the registration — eligibility stays 'pending'
- * and duplicate_check/age_category_check stay at their schema defaults
- * until milestone 8 actually evaluates them.
+ * Every check here *records* an outcome; none of them block the
+ * registration from being created (see src/db/registration-validation.ts).
+ * A flagged submission still exists, in the same 'pending' state as one
+ * that's simply awaiting review — an organizer clears it manually
+ * (§15, milestone 9), the same pattern already used for fee_match.
+ *
+ * File checks run *before* the transaction opens, not inside it — they're
+ * network calls to Storage, and holding the transaction's IMMEDIATE lock
+ * for however long that takes would needlessly block other concurrent
+ * submissions. The duplicate check, by contrast, runs *inside* the
+ * transaction (fast, DB-only) specifically to get the same IMMEDIATE-lock
+ * race protection §7 relies on for the sequence counter — see
+ * checkDuplicate's own comment for why that matters.
  */
 
 const CALENDAR_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -73,15 +83,35 @@ export async function POST(request: Request) {
   const feeMatch = body.payment.declaredAmountPaise === expectedAmountPaise;
   const submittedAt = new Date();
 
+  const [cutoffDate, artistPhotoStatus, paintingStatuses] = await Promise.all([
+    getAgeCutoffDate(),
+    validateUploadedFileOrPending(body.artistPhotoUrl, "artist_photo"),
+    Promise.all(body.paintings.map((p) => validateUploadedFileOrPending(p.fileUrl, "artwork"))),
+  ]);
+  const ageCategoryCheck = checkAgeCategory(body.dob, body.category, cutoffDate);
+
   try {
     const registrationNumber = await db.transaction(
       async (tx) => {
+        const duplicateCheck = await checkDuplicate(tx, {
+          mobile: body.mobile,
+          email: body.email,
+          upiReference: body.payment.upiReference,
+        });
+        const eligibility = computeEligibility({ ageCategoryCheck, duplicateCheck, feeMatch });
+
         const registrationNumber = await generateSequentialId(tx, body.category);
+        // Only assigned once eligible (§7) — a fresh draw from the same
+        // counter, not a copy of registrationNumber, so the numbers that
+        // end up on I-Cards/posters stay dense even though
+        // registration_number has gaps from anyone never approved.
+        const entryId = eligibility === "eligible" ? await generateSequentialId(tx, body.category) : null;
 
         const [participant] = await tx
           .insert(participants)
           .values({
             registrationNumber,
+            entryId,
             name: body.name,
             dob: body.dob,
             mobile: body.mobile,
@@ -91,6 +121,10 @@ export async function POST(request: Request) {
             consentGuardian: body.consentGuardian ?? null,
             source: "category_form",
             submittedAt,
+            ageCategoryCheck,
+            duplicateCheck,
+            eligibility,
+            registrationStatus: eligibility === "eligible" ? "complete" : "incomplete",
           })
           .returning({ id: participants.id });
 
@@ -106,15 +140,17 @@ export async function POST(request: Request) {
         await tx.insert(artistPhotos).values({
           participantId: participant.id,
           fileUrl: body.artistPhotoUrl,
+          fileStatus: artistPhotoStatus,
         });
 
         await tx.insert(entries).values(
-          body.paintings.map((painting) => ({
+          body.paintings.map((painting, i) => ({
             participantId: participant.id,
             title: painting.title,
             fileUrl: painting.fileUrl,
             medium: painting.medium,
             submittedAt,
+            fileStatus: paintingStatuses[i],
           })),
         );
 

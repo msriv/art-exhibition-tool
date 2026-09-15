@@ -62,13 +62,36 @@ export function getAdminAuth(): Auth {
 
 let cachedStorage: Storage | undefined;
 
-/**
- * Server-side Firebase Storage. Not wired into an upload flow yet — that's
- * milestone 7 (signed URLs). This just gets the bucket handle ready.
- */
+/** Server-side Firebase Storage — signed URLs (milestone 7) and file re-verification (milestone 8). */
 export function getAdminStorage(): Storage {
   if (!cachedStorage) {
     cachedStorage = getStorage(getAdminApp());
   }
   return cachedStorage;
+}
+
+/**
+ * Proactively confirms the Admin SDK has a working credential, by actually
+ * fetching an access token rather than inferring it from a later call's
+ * result.
+ *
+ * This exists because of a real, confirmed gotcha: with no credentials at
+ * all, a `Storage` request goes out with no Authorization header, and
+ * Google's API responds to that anonymous request with a plain 404 ("The
+ * specified bucket does not exist") rather than a 401/403 — it doesn't
+ * reveal whether a private bucket exists to an unauthenticated caller.
+ * `File.exists()` resolves that straight to `false`, indistinguishable
+ * from a real, checked absence. Only an operation that needs the
+ * credential itself before any network call — signing a URL, or this —
+ * fails the way you'd actually want: loudly and specifically.
+ */
+export async function assertAdminCredentialsAvailable(): Promise<void> {
+  const { credential } = getAdminApp().options;
+  if (!credential) {
+    // Shouldn't happen — getAdminApp() always initializes with an explicit
+    // credential — but the type is optional, so fail clearly rather than
+    // crashing on a null-dereference if that ever changes.
+    throw new Error("Admin app has no credential configured.");
+  }
+  await credential.getAccessToken();
 }

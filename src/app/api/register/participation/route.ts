@@ -3,16 +3,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { computeExpectedAmountPaise, PARTICIPATION_MAX_ENTRIES } from "@/config/fees";
 import { db } from "@/db/client";
+import { validateUploadedFileOrPending } from "@/db/file-validation";
 import { generateSequentialId } from "@/db/registration-id";
+import { checkDuplicate, computeEligibility } from "@/db/registration-validation";
 import { entries, participants, payments } from "@/db/schema";
 import { verifyMatchToken } from "@/lib/match-token";
 
 /**
- * Participation-only sign-up (§5, §6). Handles all three identity paths the
- * form (src/components/register/participation-form.tsx) can resolve to —
- * re-verified here rather than trusted from the client, since a request
- * could reach this endpoint directly without going through /lookup or
- * /match first:
+ * Participation-only sign-up (§5, §6, §8). Handles all three identity paths
+ * the form (src/components/register/participation-form.tsx) can resolve
+ * to — re-verified here rather than trusted from the client, since a
+ * request could reach this endpoint directly without going through
+ * /lookup or /match first:
  *
  *   1. registrationNumber given -> must resolve to an existing participant.
  *      A miss is a hard error, never a silent fall-through to path 2.
@@ -25,9 +27,19 @@ import { verifyMatchToken } from "@/lib/match-token";
  * and every entries row from this submission shares that exact value —
  * never a separately-stamped time per painting.
  *
- * Same milestone-5/8 split as the Category route: fee_match is computed
- * and stored (NOT NULL column, no "unevaluated" state available), but
- * nothing here rejects a registration over it.
+ * §8's business-rule checks (duplicate detection, eligibility, entry_id
+ * assignment) apply *only* to path 3. Paths 1 and 2 add entries/a payment
+ * to a participant whose own age/duplicate/eligibility state was already
+ * decided when they were first created — a later top-up submission never
+ * re-evaluates or overwrites that; re-reviewing a still-pending
+ * participant is an organizer/admin-dashboard concern (milestone 9), not
+ * something a new submission does on its own. age_category_check doesn't
+ * apply to any path here at all — Participation never collects a dob.
+ *
+ * File checks (§8.4) do apply uniformly to every path's paintings, and run
+ * before the transaction opens for the same reason as the Category route:
+ * they're Storage network calls, and holding the IMMEDIATE lock for their
+ * duration would needlessly block other concurrent submissions.
  */
 
 class RegistrationError extends Error {
@@ -82,6 +94,10 @@ export async function POST(request: Request) {
   const feeMatch = body.payment.declaredAmountPaise === expectedAmountPaise;
   const submittedAt = new Date();
 
+  const paintingStatuses = await Promise.all(
+    body.paintings.map((p) => validateUploadedFileOrPending(p.fileUrl, "artwork")),
+  );
+
   try {
     const registrationNumber = await db.transaction(
       async (tx) => {
@@ -117,11 +133,27 @@ export async function POST(request: Request) {
           participantId = existing.id;
           registrationNumber = existing.registrationNumber;
         } else {
+          const duplicateCheck = await checkDuplicate(tx, {
+            mobile: body.mobile,
+            email: body.email,
+            upiReference: body.payment.upiReference,
+          });
+          // No dob is ever collected here, so the age check never applies —
+          // 'n/a' counts as passing in computeEligibility.
+          const eligibility = computeEligibility({ ageCategoryCheck: "n/a", duplicateCheck, feeMatch });
+
           registrationNumber = await generateSequentialId(tx, "participation");
+          // Fresh draw from the same counter once eligible (§7) — not a
+          // copy of registrationNumber — same reasoning as the Category
+          // route: keeps entry_id dense even though registration_number
+          // has gaps from anyone never approved.
+          const entryId = eligibility === "eligible" ? await generateSequentialId(tx, "participation") : null;
+
           const [created] = await tx
             .insert(participants)
             .values({
               registrationNumber,
+              entryId,
               name: body.name,
               dob: null,
               mobile: body.mobile,
@@ -131,6 +163,9 @@ export async function POST(request: Request) {
               consentGuardian: null,
               source: "participation_form",
               submittedAt,
+              duplicateCheck,
+              eligibility,
+              registrationStatus: eligibility === "eligible" ? "complete" : "incomplete",
             })
             .returning({ id: participants.id });
           participantId = created.id;
@@ -146,12 +181,13 @@ export async function POST(request: Request) {
         });
 
         await tx.insert(entries).values(
-          body.paintings.map((painting) => ({
+          body.paintings.map((painting, i) => ({
             participantId,
             title: painting.title,
             fileUrl: painting.fileUrl,
             medium: painting.medium,
             submittedAt, // same value for every painting in this submission (§6)
+            fileStatus: paintingStatuses[i],
           })),
         );
 
