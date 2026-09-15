@@ -266,6 +266,68 @@ same category and confirmed 15 unique, gapless sequential numbers —
 directly testing the race condition §7 exists to prevent, not just
 asserting the code looks right.
 
+## Participation sign-up API route (milestone 6)
+
+Three routes, all re-verifying identity server-side rather than trusting
+what the client already checked via `/lookup` or `/match` — a request could
+reach `/api/register/participation` directly, bypassing both:
+
+- **`POST /api/register/lookup`** — resolves a registration number. Masked
+  preview only (`src/db/mask-identity.ts`); see the "Participation form"
+  section above for why a registration number can't safely return real PII.
+- **`POST /api/register/match`** — looks for an existing participant by
+  **email or mobile only** when no registration number was given. Name is
+  accepted in the request but deliberately not used to trigger a match on
+  its own — nothing stops two participants sharing a name, and matching
+  confidently on it risks suggesting the wrong person. Neither email nor
+  mobile is unique in the schema (§8.2 wants a reused value flagged, not
+  rejected), so more than one row can share either; the most recently
+  created match wins per signal, then email wins if email and mobile
+  independently point to different participants. Returns an opaque,
+  HMAC-signed token (`src/lib/match-token.ts`, 30-minute expiry) rather
+  than the matched registration number — the client never learns it, even
+  after confirming.
+- **`POST /api/register/participation`** — the actual submission (§6). One
+  transaction (same `{ behavior: "immediate" }` pattern as Category)
+  resolves identity via exactly one of three paths, then writes a
+  `payments` row and one `entries` row per painting, all sharing a single
+  `submittedAt` read once before any insert:
+  1. `registrationNumber` given → must resolve to an existing participant.
+     Not found is a hard 404 — never falls through to path 3.
+  2. `confirmedMatchToken` given → re-verified (signature + expiry) and
+     must still resolve to a participant that exists. Invalid or expired →
+     409, telling the person to check again rather than silently creating
+     a duplicate.
+  3. Neither given → creates a new participant with a freshly-generated
+     `CP-nnnnn` number via the same `generateSequentialId` milestone 5
+     built for `C1`/`C2`/`C3`.
+
+Known limitation, not attempted here: mobile numbers are compared exactly
+as typed. `"+91 98765 43210"` and `"9876543210"` won't match each other.
+Worth a normalization pass later.
+
+Verified against a local database:
+- A registration-number lookup and a case-insensitive email match
+  (`PRIYA@EXAMPLE.COM` matching a stored `priya@example.com`) both resolve
+  correctly with the right masked preview.
+- All three identity paths correctly attach to or create a participant:
+  confirmed **3 entries and 3 payments** on one participant across three
+  separate submissions (original Category signup, via registration number,
+  via confirmed match token) — proving both resolution paths land on the
+  *same* existing record rather than creating duplicates.
+- A 2-painting submission in one call shares exactly one `submittedAt`
+  value — the exact §6 requirement.
+- Zero orphaned rows after four different rejected attempts (unknown
+  registration number, expired/garbage match token, both identity fields
+  given at once, 21 paintings against the 20-item cap) — confirms the
+  transaction rolls back cleanly and pre-transaction validation blocks bad
+  requests before anything is written.
+- Fired **10 genuinely concurrent** brand-new registrations and confirmed
+  10 unique, gapless `CP-nnnnn` numbers, continuing correctly from an
+  already-used counter value — the same race-safety milestone 5 proved for
+  `C1`/`C2`/`C3`, now confirmed for the `CP` path specifically, which is
+  what actually makes that prefix reachable.
+
 ## Production build
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
@@ -313,7 +375,7 @@ Working through the milestones in §18 of the technical plan.
 - [x] 3. Firebase Auth + Firebase Storage config and security rules
 - [x] 4. `/register` form routing, Category and Participation forms
 - [x] 5. Category sign-up API route
-- [ ] 6. Participation sign-up API route (multi-entry)
+- [x] 6. Participation sign-up API route (multi-entry)
 - [ ] 7. Signed upload URL flow
 - [ ] 8. Server-side validation (age, duplicate, fee, file)
 - [ ] 9. Reusable admin CRUD table + all resources behind auth
