@@ -42,12 +42,16 @@ export function ResourceForm({ columns, mode, initialValues, onSubmit, submitLab
     }
     return defaults;
   });
-  const [status, setStatus] = useState<{ state: "idle" | "saving" | "error"; message?: string }>({
+  const [status, setStatus] = useState<{ state: "idle" | "saving" | "saved" | "error"; message?: string }>({
     state: "idle",
   });
 
   function setField(key: string, value: unknown) {
     setValues((prev) => ({ ...prev, [key]: value }));
+    // A "Saved" (or stale error) badge shouldn't keep showing once the
+    // organizer has changed something since — it no longer describes what's
+    // currently in the form.
+    setStatus((prev) => (prev.state === "idle" || prev.state === "saving" ? prev : { state: "idle" }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -55,6 +59,11 @@ export function ResourceForm({ columns, mode, initialValues, onSubmit, submitLab
     setStatus({ state: "saving" });
     try {
       await onSubmit(values);
+      // Create navigates away immediately via router.push (see
+      // NewResourceForm), so this only ever visibly matters for edit — but
+      // it has to run either way, since onSubmit resolving successfully
+      // is the only signal a save actually finished.
+      setStatus({ state: "saved" });
     } catch (err) {
       setStatus({ state: "error", message: err instanceof Error ? err.message : "Something went wrong." });
     }
@@ -93,10 +102,13 @@ export function ResourceForm({ columns, mode, initialValues, onSubmit, submitLab
         </div>
       )}
 
-      <button type="submit" disabled={status.state === "saving"} className="btn btn-primary self-start">
-        {status.state === "saving" && <span className="loading loading-spinner loading-sm" />}
-        {status.state === "saving" ? "Saving…" : submitLabel}
-      </button>
+      <div className="flex items-center gap-3">
+        <button type="submit" disabled={status.state === "saving"} className="btn btn-primary self-start">
+          {status.state === "saving" && <span className="loading loading-spinner loading-sm" />}
+          {status.state === "saving" ? "Saving…" : submitLabel}
+        </button>
+        {status.state === "saved" && <span className="text-success text-sm">Saved</span>}
+      </div>
     </form>
   );
 }
