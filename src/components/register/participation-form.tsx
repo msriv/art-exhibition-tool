@@ -5,6 +5,7 @@ import { computeExpectedAmountPaise, formatRupees, PARTICIPATION_MAX_ENTRIES } f
 import type { LookupResponse, MaskedIdentity, MatchResponse } from "@/lib/register-lookup-types";
 import type { ParticipationRegistrationPayload } from "@/lib/register-types";
 import { UploadNotAvailableError, uploadFile } from "@/lib/upload";
+import { DoodleUnderline } from "@/components/ui/doodles";
 import { emptyPaintingDraft, PaintingFields, type PaintingDraft } from "./painting-fields";
 
 type Props = {
@@ -203,6 +204,7 @@ export function ParticipationForm({ organizerUpiId }: Props) {
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
       <h1 className="text-xl font-semibold tracking-tight">Participation-Only Sign-Up</h1>
+      <DoodleUnderline className="text-primary mt-1 h-2.5 w-28" />
       <p className="text-base-content/70 mt-2 text-sm">
         Already registered? Enter your registration number below. First time entering?
         Leave it blank — we&apos;ll check for an existing registration before creating a
