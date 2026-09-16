@@ -792,6 +792,26 @@ and connecting a GitHub repo to an App Hosting backend is a console/CLI
 action against *your* account, not something a commit can do). See "Next
 steps" below for the exact remaining steps.
 
+**Post-deploy fixes**, found live once the backend was actually connected
+and this sandbox's usual ADC gap stopped applying:
+
+- **The homepage still had its milestone-1 scaffold text** ("Sign-up forms
+  and the organizer dashboard are not built yet"), unnoticed through every
+  later milestone since nothing ever pointed a test at `/` itself. Now
+  links to `/register` and `/admin`.
+- **No admin UI ever existed for the two organizer-editable `settings` rows**
+  (`age_cutoff_date`, `organizer_upi_id`) — `updateSetting()` existed in
+  `src/db/settings.ts` since early in the build, but nothing in the app
+  ever called it. Invisible against the local sandbox DB (already seeded
+  with placeholders no one needed to change to keep testing), but a real
+  blocker against a fresh production database: `organizer_upi_id` seeds to
+  a non-functional placeholder that would otherwise show up on the real
+  payment step for the first real participant to register. Added
+  `/admin/settings` — a small form over the same `settings` table, with
+  the same validation (`parseCalendarDate`/`parseUpiId`) the seed script's
+  defaults already go through, so a bad value is rejected with a clear
+  error rather than silently corrupting the row.
+
 ## Deferred — not in scope yet, explicitly parked
 
 Not part of the build order in §18. Raised, discussed, and deliberately
