@@ -39,6 +39,16 @@ export default async function AdminPage() {
               </Link>
             );
           })}
+          <Link href="/admin/scoring" className="card bg-base-200 hover:bg-base-300 transition-colors">
+            <div className="card-body">
+              <h2 className="card-title text-base">Scoring</h2>
+            </div>
+          </Link>
+          <Link href="/admin/results" className="card bg-base-200 hover:bg-base-300 transition-colors">
+            <div className="card-body">
+              <h2 className="card-title text-base">Results</h2>
+            </div>
+          </Link>
         </div>
       </main>
     </div>

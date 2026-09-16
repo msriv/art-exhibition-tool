@@ -561,6 +561,74 @@ still correctly returns 401 (API) or redirects to `/admin/login` (page)
 with no session cookie, exactly as it did before this milestone touched
 anything.
 
+## Scoring and results (milestone 11)
+
+Implements §11: one overall score per entry, entered through a dedicated
+page rather than the raw `scores` CRUD table from milestone 9 — and a
+rank/result computation that's never stored, only ever computed fresh from
+`entries` + `scores`.
+
+- **`/admin/scoring`** lists every entry eligible to be scored — competitive
+  Categories 1/2/3 only (Participation-only has no ranking or prizes; both
+  spec documents frame it as a separate, non-competitive track), and only
+  once its participant is `'eligible'` and its own file is `'valid'`. Score
+  and "scoring complete" are edited inline per row and saved explicitly
+  (matches `ResourceForm`'s explicit-submit pattern elsewhere, not
+  autosave-on-keystroke). `src/db/scoring.ts`'s `upsertScore` inserts or
+  updates the entry's `scores` row as needed — the caller only ever deals in
+  entry IDs, never `scores.id`, which it has no reason to know.
+- **`/admin/results`** computes, per category, whether every eligible entry
+  in it has `scoring_complete` set — only then does that category's ranking
+  appear at all; otherwise it shows a plain "N of M scored" progress note.
+  This reads the spec's "avoiding a premature result while scoring is still
+  in progress" at the *category* level, not just per entry: showing a
+  confident ranking while the actual best painting sits unscored would be
+  exactly that premature result. Ties use standard competition ranking
+  (1224, not 1223) — two entries tied for first are both `'First'` and the
+  next entry down is `'Third'`, not `'Second'`.
+
+**A real bug found in testing, not caught by lint or typecheck:**
+`computeResults()` reads straight from the database via the libSQL driver —
+not `fetch()`, and the results page takes no route params and calls neither
+`cookies()` nor `headers()`, so it gave Next's App Router none of the
+signals it uses to decide a Server Component needs to run per request.
+Left alone, the page was **prerendered once at build time** and would have
+served that identical frozen snapshot in production forever — a newly
+scored entry would never appear, however many were entered after
+deployment. Confirmed directly: the build output listed `/admin/results` as
+`○ Static`, and a Playwright run that scored all three seeded entries and
+then reloaded the page still showed "0 of 3 scored." Fixed with
+`export const dynamic = "force-dynamic"`, after which the same route
+appears in the build output as `ƒ Dynamic` and the same Playwright run
+correctly shows the computed ranking.
+
+**Verified two ways**, same approach as milestone 9. The scoring/results
+logic directly against the database — `listScorableEntries` correctly
+excludes an ineligible participant's entry and an entry with a rejected
+file; a category reports not-ready with a partial scoring pass and ready
+only once every pooled entry is scored; ranking order, `upsertScore`
+updating rather than duplicating a row, and the tie-ranking behavior above
+all checked directly, bypassing HTTP and auth entirely (needed
+`node --conditions=react-server` so a plain script could import
+`server-only`-guarded modules the way Next itself does when building for
+the server, without pulling in a browser bundler to fake it).
+
+The actual pages, gated by `proxy.ts`'s real Firebase session-cookie check
+this sandbox's missing ADC can't satisfy, were verified the same way as
+milestone 9: a temporary `proxy.ts` bypass behind
+`TEMP_DISABLE_ADMIN_AUTH` (git-diff confirmed clean before and after, never
+committed), a production build (the dev server's HMR issue from milestone 4
+persists), and Playwright driving the real pages — dashboard links to both
+new pages, results shows an in-progress count before scoring, all three
+seeded entries appear on the scoring page, saved scores persist across a
+reload, the category filter narrows correctly, and results shows the
+correct First/Second/Third order once every entry is scored (this is the
+run that caught the static-rendering bug above). Bypass reverted, database
+reset, rebuilt clean, and `curl` re-confirmed 401/redirect with no session
+cookie on every new route — `/admin/scoring`, `/admin/results`,
+`/api/admin/scoring`, `/api/admin/scoring/:entryId`, `/api/admin/results` —
+with no changes to `proxy.ts`'s matcher.
+
 ## Production build
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
@@ -598,8 +666,20 @@ sessions.
   implementation detail. This also implies a participant profile page
   (itself downstream of participant accounts existing) showing their own
   submissions and, once generated, their I-Card.
+- **UPI statement CSV reconciliation (§10, milestone 10).** The purpose is
+  real: `payments.verification_status` is otherwise entirely self-reported
+  by the participant (a typo'd or fabricated `upi_reference` would sail
+  through undetected), and cross-checking the organizer's actual bank/UPI
+  statement is what would catch that. Parked at the organizer's request
+  rather than built speculatively — bank/UPI export formats vary enough
+  (column names, headers) that building this without a real sample file to
+  parse against risks guessing a format that doesn't match what actually
+  gets exported. Until this is picked back up, `verification_status` stays
+  a manual field: the organizer sets it to `'verified'` or `'unmatched'`
+  directly through the admin CRUD (milestone 9) after checking the
+  statement by eye — functionally the same outcome, just not automated.
 
-Neither is scheduled; both need their own scoping pass before starting.
+Nothing above is scheduled; each needs its own scoping pass before starting.
 
 Working through the milestones in §18 of the technical plan.
 
@@ -612,8 +692,8 @@ Working through the milestones in §18 of the technical plan.
 - [x] 7. Signed upload URL flow
 - [x] 8. Server-side validation (age, duplicate, fee, file)
 - [x] 9. Reusable admin CRUD table + all resources behind auth
-- [ ] 10. UPI statement CSV reconciliation
-- [ ] 11. Scoring and rank computation
+- [ ] 10. UPI statement CSV reconciliation — **parked**, see "Deferred" above
+- [x] 11. Scoring and rank computation
 - [ ] 12. WhatsApp message text + manual send log
 - [ ] 13. Verify production build locally; configure `apphosting.yaml`
 - [ ] 14. Dry run of ~20 registrations
