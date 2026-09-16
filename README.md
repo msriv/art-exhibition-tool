@@ -629,6 +629,65 @@ cookie on every new route — `/admin/scoring`, `/admin/results`,
 `/api/admin/scoring`, `/api/admin/scoring/:entryId`, `/api/admin/results` —
 with no changes to `proxy.ts`'s matcher.
 
+## WhatsApp updates (milestone 12)
+
+Implements §12 literally: ready-made message text an organizer copies and
+sends by hand via WhatsApp Web/app, and a log of what's been marked sent —
+no messaging API integration anywhere, exactly as the spec insists ("Manual
+by Design").
+
+- **`GET /api/admin/whatsapp-text?participantId=&stage=`** — the spec's own
+  route name. `src/config/whatsapp-templates.ts` holds one template
+  function per stage (`registered`/`accepted`/`results`/`dispatched`),
+  filled in from real participant fields (name, registration number,
+  category, entry ID, courier tracking, dispatch date) by
+  `src/db/whatsapp.ts`'s `buildMessageText`. These are starting text, not
+  final copy — an organizer can edit before sending, so the exact wording
+  doesn't need to be precise, just useful.
+- **`POST /api/admin/whatsapp-log`** — also the spec's route name. "Simply
+  records that a message was marked as sent, and when" — `markSent` upserts
+  the `whatsapp_updates` row for that participant+stage (there's a unique
+  index on the pair) rather than ever accumulating duplicate log rows for
+  repeated sends of the same stage.
+- **`GET /api/admin/whatsapp-log?participantId=`** — not named in the spec,
+  but a necessary complement: the page needs some way to show which of a
+  participant's four stages are already marked sent, and when, before an
+  organizer decides what to send next. Reads the same table the POST writes
+  to, under the same route.
+- **`/admin/whatsapp`** — search a participant by name, registration
+  number, mobile, or email (reusing the same search the generic
+  participants CRUD from milestone 9 already exposes via `?q=`, rather than
+  building a second search endpoint), then see and copy each stage's text
+  alongside its current sent status, with a "Mark sent" button per stage.
+
+**Verified two ways**, same approach as milestones 9 and 11. The template
+and log logic directly against the database — each stage's generated text
+actually contains the right participant details (name, registration
+number, category, entry ID, tracking number, dispatch date); an unknown
+participant returns `undefined` rather than throwing; the send log starts
+entirely unset; marking a stage sent sets a timestamp for *only* that
+stage; and marking the same stage sent twice updates the existing row's
+timestamp rather than creating a second one (confirmed by directly
+counting rows for that participant+stage afterward, not just checking the
+returned value).
+
+The actual page — gated by `proxy.ts`'s real Firebase session-cookie check
+this sandbox can't satisfy — was verified the same way as the last two
+milestones: a temporary `proxy.ts` bypass (git-diff confirmed clean before
+and after, never committed), a production build, and Playwright driving
+the real page: search finds the seeded participant, all four stage cards
+render with genuinely distinct template text (confirmed via each
+`<textarea>`'s actual value, since `innerText()` doesn't surface a form
+control's value — the first assertion attempt missed this and had to be
+corrected), the Copy button both shows a confirmation and puts the real
+message text on the clipboard, marking one stage sent updates only that
+stage's status and leaves the other three untouched, and the sent status
+survives a full page reload. Bypass reverted, database reset, rebuilt
+clean, and `curl` re-confirmed 401/redirect with no session cookie on
+every new route — `/admin/whatsapp`, `/api/admin/whatsapp-text`,
+`/api/admin/whatsapp-log` (GET and POST) — with no changes to `proxy.ts`'s
+matcher.
+
 ## Production build
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
@@ -694,7 +753,7 @@ Working through the milestones in §18 of the technical plan.
 - [x] 9. Reusable admin CRUD table + all resources behind auth
 - [ ] 10. UPI statement CSV reconciliation — **parked**, see "Deferred" above
 - [x] 11. Scoring and rank computation
-- [ ] 12. WhatsApp message text + manual send log
+- [x] 12. WhatsApp message text + manual send log
 - [ ] 13. Verify production build locally; configure `apphosting.yaml`
 - [ ] 14. Dry run of ~20 registrations
 - [ ] 15. Connect GitHub repo to a Firebase App Hosting backend; deploy

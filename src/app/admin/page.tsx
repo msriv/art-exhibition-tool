@@ -49,6 +49,11 @@ export default async function AdminPage() {
               <h2 className="card-title text-base">Results</h2>
             </div>
           </Link>
+          <Link href="/admin/whatsapp" className="card bg-base-200 hover:bg-base-300 transition-colors">
+            <div className="card-body">
+              <h2 className="card-title text-base">WhatsApp updates</h2>
+            </div>
+          </Link>
         </div>
       </main>
     </div>
