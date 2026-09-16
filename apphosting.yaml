@@ -1,0 +1,72 @@
+# Firebase App Hosting config (Technical Plan §17, milestone 13).
+#
+# App Hosting builds straight from the connected GitHub branch — no
+# Dockerfile or `gcloud` commands to run by hand (see README's "Production
+# build" section for the local Docker-equivalent sanity check instead).
+# This file is the only piece App Hosting reads from the repo itself; the
+# secrets it references are created once via `firebase apphosting:secrets:set
+# <name>` and then just named here, never committed with real values.
+#
+# min-instances: 0 keeps idle cost at $0, at the price of a cold start on
+# the first request after a quiet spell — bump to 1 before the event if
+# that's not acceptable for the public sign-up forms.
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+  cpuAlwaysAllocated: false
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  # ---------------------------------------------------------------------
+  # Database (Turso / libSQL) — server-only, never reaches the client.
+  # ---------------------------------------------------------------------
+  - variable: TURSO_DATABASE_URL
+    secret: turso-database-url
+    availability: [RUNTIME]
+  - variable: TURSO_AUTH_TOKEN
+    secret: turso-auth-token
+    availability: [RUNTIME]
+
+  # ---------------------------------------------------------------------
+  # Organizer allow-list fallback (src/db/admins.ts) — server-only.
+  # ---------------------------------------------------------------------
+  - variable: SEED_ADMIN_EMAILS
+    secret: seed-admin-emails
+    availability: [RUNTIME]
+
+  # ---------------------------------------------------------------------
+  # Participation-match token signing (src/lib/match-token.ts) — server-only.
+  # ---------------------------------------------------------------------
+  - variable: MATCH_TOKEN_SECRET
+    secret: match-token-secret
+    availability: [RUNTIME]
+
+  # ---------------------------------------------------------------------
+  # Firebase web config — public by design (ships inside client-side JS),
+  # so these are plain values, not secrets. NEXT_PUBLIC_* vars are inlined
+  # by Next.js at build time, so BUILD availability is required, not just
+  # RUNTIME.
+  # ---------------------------------------------------------------------
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyAlyn6ogxNhvDPwXry6x2y_yJoShyQNA0s
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: art-tool-1.firebaseapp.com
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: art-tool-1
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: art-tool-1.firebasestorage.app
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "523614082407"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:523614082407:web:f9c911a9b0181837d00bc2"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    value: G-J77KKLE5JG
+    availability: [BUILD, RUNTIME]

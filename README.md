@@ -688,22 +688,109 @@ every new route — `/admin/whatsapp`, `/api/admin/whatsapp-text`,
 `/api/admin/whatsapp-log` (GET and POST) — with no changes to `proxy.ts`'s
 matcher.
 
-## Production build
+## Production build (milestone 13)
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
-not what App Hosting's own Cloud Build pipeline uses, but it's a quick way to
-confirm the app actually builds and runs as a production server before
-pushing:
+not what App Hosting's own Cloud Build pipeline uses, but it's the closest
+local equivalent to what actually gets deployed: a minimal `server.js` plus
+only the traced `node_modules`, run exactly as a production server would be,
+not `next dev`.
 
 ```bash
 npm run build
 cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/
-PORT=8080 node .next/standalone/server.js
+cp local.db .next/standalone/local.db   # standalone's server.js chdir's into
+                                         # its own directory, so a relative
+                                         # `file:./local.db` resolves there,
+                                         # not the repo root — copy it in or
+                                         # every query 404s against an empty db
+PORT=8080 node --env-file-if-exists=.env.local .next/standalone/server.js
 ```
 
-Actual deployment is via Firebase App Hosting (see the build status below),
-which builds and rolls out from the connected GitHub branch — no Dockerfile
-or `gcloud` commands to run by hand.
+Verified directly: `npm run typecheck`, `npm run lint`, and `npm run build`
+all clean from a fresh checkout, then the standalone bundle itself smoke-
+tested — the public `/` and `/register` pages serve, `/admin` redirects to
+`/admin/login` with no session cookie, `/api/admin/participants` returns 401,
+and a malformed `/api/register/lookup` body returns the expected 400 — all
+against the *exact* runtime shape (traced dependencies, no dev tooling) that
+ships, not just the dev server.
+
+**`apphosting.yaml`** is the actual App Hosting config (added this
+milestone) — the one file App Hosting reads from the repo itself, since it
+builds straight from the connected GitHub branch with no Dockerfile or
+`gcloud` commands to run by hand. `runConfig` sets `minInstances: 0` (idle
+cost stays $0, at the price of a cold start after a quiet spell — bump to 1
+before the event if that's not acceptable for the public forms). Its `env`
+list mirrors `.env.local`: the four server-only secrets
+(`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SEED_ADMIN_EMAILS`,
+`MATCH_TOKEN_SECRET`) are declared by name only, referencing Secret Manager
+secrets that don't exist yet — see "Next steps" below for creating them;
+the `NEXT_PUBLIC_FIREBASE_*` web config is committed as plain values with
+`availability: [BUILD, RUNTIME]` since Next.js inlines `NEXT_PUBLIC_*` vars
+into the client bundle at build time, and these ship inside that bundle to
+every visitor's browser regardless — there's nothing a commit exposes that
+the deployed site doesn't already. `package.json` also now declares
+`"engines": { "node": ">=20.9.0" }`, matching Next 16's own requirement, so
+App Hosting's buildpack picks the right Node runtime rather than guessing.
+Also added `.firebaserc` pointing at `art-tool-1` so `firebase` CLI commands
+target the right project without `--project` on every invocation.
+
+## Dry run (milestone 14)
+
+Simulated 20 registrations end-to-end against the real HTTP API — not a unit
+test of the underlying functions, the actual `POST /api/register/category`,
+`POST /api/register/participation`, and `POST /api/register/match` routes,
+running against the standalone production bundle from milestone 13, with
+every outcome then confirmed by querying the database directly rather than
+trusting the HTTP response alone. All 20 passed. Covered, per §14's own
+list plus everything else §6/§7/§8 describe:
+
+- Six normal registrations spanning Categories 1/2/3, including the exact
+  age-band boundaries (18 for Category 2's upper edge, 19 for Category 3's
+  lower edge) — confirms the "non-overlapping bands" reading documented in
+  `src/config/fees.ts` is what's actually enforced, not the stakeholder
+  doc's overlapping one.
+- Two age mismatches (a dob that belongs in a different category than the
+  one selected) — both correctly `flag`ged and left short of `'eligible'`.
+- All three duplicate signals from §8.2 — reused email, reused mobile, and
+  reused `upi_reference` — each correctly flagged naming which signal
+  matched.
+- Two fee mismatches (Category and Participation) — `fee_match: false`,
+  not eligible.
+- Guardian consent recorded for an under-18 registration.
+- A multi-entry Participation submission (3 paintings, one request) — all
+  three `entries` rows share the exact same `submitted_at` (§6).
+- A Participation top-up **by registration number** — attaches to the
+  existing participant without re-evaluating their eligibility or
+  reassigning `entry_id` (per the earlier design decision that a top-up
+  submission never revisits a decision already made).
+- A Participation top-up **by confirmed match token** — the real
+  `/api/register/match` endpoint found the existing participant by
+  email/mobile, issued a token, and the follow-up submission attached to
+  that same participant, not a new one.
+- An **unknown registration number** — a hard 404, never a silent
+  fall-through to PII matching (the explicit behavior a user asked for
+  earlier in the build).
+- A file Storage can't reach — this sandbox has no live Firebase ADC (the
+  same ambient limitation noted at every earlier milestone), so the one
+  scenario this dry run *can't* genuinely exercise is a file actually
+  inspected and rejected for being the wrong type/size/resolution; that
+  half was already verified directly in milestone 8 against a reachable
+  (mocked) Storage. What this dry run does confirm is the fallback path
+  §8.4 depends on: the registration still succeeds and `file_status` stays
+  `'pending'` rather than the request failing or the file being wrongly
+  marked `'rejected'` — the exact bug milestone 8 found and fixed.
+
+## Deploy readiness (milestone 15)
+
+Everything the repo itself can provide for App Hosting is now in place —
+`apphosting.yaml`, `.firebaserc`, the `engines` pin, and a production build
+verified against the exact standalone runtime shape App Hosting deploys.
+What's left needs the organizer's own Firebase/Google account and GitHub
+permissions, which this sandbox has neither of (no Firebase CLI, no ADC,
+and connecting a GitHub repo to an App Hosting backend is a console/CLI
+action against *your* account, not something a commit can do). See "Next
+steps" below for the exact remaining steps.
 
 ## Deferred — not in scope yet, explicitly parked
 
@@ -754,6 +841,51 @@ Working through the milestones in §18 of the technical plan.
 - [ ] 10. UPI statement CSV reconciliation — **parked**, see "Deferred" above
 - [x] 11. Scoring and rank computation
 - [x] 12. WhatsApp message text + manual send log
-- [ ] 13. Verify production build locally; configure `apphosting.yaml`
-- [ ] 14. Dry run of ~20 registrations
-- [ ] 15. Connect GitHub repo to a Firebase App Hosting backend; deploy
+- [x] 13. Verify production build locally; configure `apphosting.yaml`
+- [x] 14. Dry run of ~20 registrations
+- [ ] 15. Connect GitHub repo to a Firebase App Hosting backend; deploy — **prepared, needs your Firebase/GitHub account** — see "Next steps to go live" below
+
+## Next steps to go live
+
+Everything up to this point is code and config in the repo. What's left is
+a handful of one-time actions against your own Firebase project and GitHub
+account — none of it can be done from here, since it needs credentials and
+console/CLI access this sandbox doesn't have.
+
+1. **Create the four secrets `apphosting.yaml` references**, via the
+   [Firebase Console](https://console.firebase.google.com/project/art-tool-1/apphosting)
+   or the CLI (`npm install -g firebase-tools`, then `firebase login`):
+   ```bash
+   firebase apphosting:secrets:set turso-database-url --project art-tool-1
+   firebase apphosting:secrets:set turso-auth-token --project art-tool-1
+   firebase apphosting:secrets:set seed-admin-emails --project art-tool-1
+   firebase apphosting:secrets:set match-token-secret --project art-tool-1
+   ```
+   Use your **production** Turso database's URL/token here (from
+   `turso db show <name>` / `turso db tokens create <name>`), not the local
+   `file:./local.db` this sandbox has been using — a fresh Turso database
+   needs `npm run db:migrate` (and, once, `npm run db:seed`) pointed at it
+   before the app can use it. `seed-admin-emails` is the same comma-separated
+   allow-list format as `.env.local`'s `SEED_ADMIN_EMAILS`.  `match-token-secret`
+   should be a fresh value, not reused from `.env.local`:
+   `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`.
+2. **Create the App Hosting backend and connect this GitHub repo** —
+   console: Firebase Console → Build → App Hosting → "Create backend", pick
+   `msriv/art-exhibition-tool` and the `main` branch, grant the Firebase
+   GitHub App access to the repo when prompted. This is the step that
+   actually can't be scripted from here: it's an OAuth grant against your
+   GitHub account. CLI equivalent: `firebase apphosting:backends:create --project art-tool-1`.
+3. **First rollout** — App Hosting deploys automatically on every push to
+   the connected branch once step 2 is done, so pushing this commit (or
+   the next one) to `main` *is* the deploy. Watch it in the Console's App
+   Hosting tab; a first build typically takes a few minutes.
+4. **Set the organizer allow-list for real** — `seed-admin-emails` (step 1)
+   is the break-glass fallback; day-to-day, add organizers through
+   `/admin/participants`'s sibling table via `npm run db:add-admin -- someone@example.com`
+   against the production database, or once milestone 9's admin CRUD is
+   live in production, through the dashboard itself.
+5. **Smoke-test against the live URL** once deployed: sign in at `/admin`
+   with an allow-listed Google account, confirm the dashboard loads, and
+   run through one real registration on `/register` — this is the first
+   point where Firebase Storage and Auth are genuinely live rather than
+   the documented ADC gap this whole build has worked around.
