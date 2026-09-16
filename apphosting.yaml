@@ -24,25 +24,17 @@ env:
   # ---------------------------------------------------------------------
   - variable: TURSO_DATABASE_URL
     secret: turso-database-url
-    availability: [RUNTIME]
+    availability: [ RUNTIME ]
   - variable: TURSO_AUTH_TOKEN
     secret: turso-auth-token
-    availability: [RUNTIME]
-
-  # ---------------------------------------------------------------------
-  # Organizer allow-list fallback (src/db/admins.ts) — server-only.
-  # ---------------------------------------------------------------------
+    availability: [ RUNTIME ]
   - variable: SEED_ADMIN_EMAILS
     secret: seed-admin-emails
-    availability: [RUNTIME]
-
-  # ---------------------------------------------------------------------
-  # Participation-match token signing (src/lib/match-token.ts) — server-only.
-  # ---------------------------------------------------------------------
+    availability: [ RUNTIME ]
   - variable: MATCH_TOKEN_SECRET
     secret: match-token-secret
-    availability: [RUNTIME]
-
+    availability: [ RUNTIME ]
+  
   # ---------------------------------------------------------------------
   # Firebase web config — public by design (ships inside client-side JS),
   # so these are plain values, not secrets. NEXT_PUBLIC_* vars are inlined
@@ -51,22 +43,22 @@ env:
   # ---------------------------------------------------------------------
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     value: AIzaSyAlyn6ogxNhvDPwXry6x2y_yJoShyQNA0s
-    availability: [BUILD, RUNTIME]
+    availability: [ BUILD, RUNTIME ]
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     value: art-tool-1.firebaseapp.com
-    availability: [BUILD, RUNTIME]
+    availability: [ BUILD, RUNTIME ]
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
     value: art-tool-1
-    availability: [BUILD, RUNTIME]
+    availability: [ BUILD, RUNTIME ]
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
     value: art-tool-1.firebasestorage.app
-    availability: [BUILD, RUNTIME]
+    availability: [ BUILD, RUNTIME ]
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
     value: "523614082407"
-    availability: [BUILD, RUNTIME]
+    availability: [ BUILD, RUNTIME ]
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     value: "1:523614082407:web:f9c911a9b0181837d00bc2"
-    availability: [BUILD, RUNTIME]
+    availability: [ BUILD, RUNTIME ]
   - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
     value: G-J77KKLE5JG
-    availability: [BUILD, RUNTIME]
+    availability: [ BUILD, RUNTIME ]
