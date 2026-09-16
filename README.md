@@ -468,6 +468,99 @@ deployed — but this is the one place it could have silently produced a
 wrong, misleading result instead of an obviously-broken one, so it was
 worth catching now rather than in production.
 
+## Admin CRUD dashboard (milestone 9)
+
+Implements §15's "one reusable admin CRUD table" literally: a single data
+layer, a single list/search/filter/sort component, and a single row-editor
+form drive all five organizer-facing resources (`participants`, `payments`,
+`entries`, `artist-photos`, `scores`) rather than five bespoke admin pages.
+
+- **Config, not code, defines each resource.** `src/config/admin-resources.ts`
+  is a plain, client-safe `Record<slug, AdminResourceMeta>` — column labels,
+  types (`text`/`number`/`currency`/`boolean`/`date`/`datetime`/`enum`),
+  which columns are read-only, nullable, searchable, filterable, sortable,
+  and shown in the list view. Adding a sixth resource later is a config
+  entry, not a new page. `src/db/admin-resources.ts` is the thin
+  `server-only` half that attaches each slug to its actual Drizzle table —
+  kept separate so the Drizzle table objects themselves never end up in a
+  client bundle.
+- **One CRUD engine** (`src/db/admin-crud.ts`) backs `GET`/`POST
+  /api/admin/[resource]` and `GET`/`PATCH`/`DELETE
+  /api/admin/[resource]/[id]`. `getTableColumns()` turns a Drizzle table into
+  a `{ [key]: Column }` record, so a column can be looked up by the same
+  string key the resource config already uses — list filtering, search
+  (`LIKE`, OR'd across a resource's `searchableColumns`), and sorting are all
+  generic over that lookup rather than hardcoded per table.
+- **"Read-only" is relative to create vs. update, not absolute.** A value
+  the system assigns once it exists — `registration_number`, `submitted_at`
+  — must never be overwritten by an edit, but a *manually*-created row
+  (§15's own example: a payment taken over the phone, with no upload to
+  trigger the usual flow) still needs a value for that same NOT NULL column
+  since nothing else will ever supply one. `ResourceForm` shows a read-only
+  field as an editable input in create mode and as locked plain text in edit
+  mode; `coerceValues` in `admin-crud.ts` mirrors the same distinction
+  server-side (excludes read-only fields from an `UPDATE`, includes them in
+  an `INSERT`) — checked with a mode parameter rather than applying the
+  same rule unconditionally in both directions.
+- **Participant detail also shows joined records** — a participant's
+  entries (each with its score, if scored), artist photo, and payments,
+  fetched as separate parallel queries rather than one SQL join. At five
+  resources and this scale there's no performance reason to prefer a join
+  over the clearer option, and every other resource stays a single flat row.
+- **No new auth code.** `/admin/[resource]*` and `/api/admin/[resource]*`
+  are covered by the existing `proxy.ts` matcher (`/admin/:path*`,
+  `/api/admin/:path*`) from milestone 3 — verified directly (see below)
+  rather than assumed.
+
+**Two real bugs found and fixed while testing this, both about a value that
+never makes it into the submitted payload at all, as opposed to an invalid
+one:**
+
+1. **A NOT NULL boolean column with no default (e.g. `consent_participant`)
+   broke create if its checkbox was never clicked.** An unchecked checkbox
+   still means "false," but React never fires `onChange` for a box that's
+   never touched, so the column's key was simply absent from the form's
+   `values` state — and `coerceValues` treats "key absent" as "leave this
+   column out of the `INSERT`" (correct for a genuinely untouched optional
+   field, wrong here), which fails the column's NOT NULL constraint instead
+   of writing `false`. Fixed in `ResourceForm`: create mode now seeds every
+   non-nullable boolean column's initial value to `false` up front, so the
+   key is always present even if the checkbox is never clicked.
+2. **A failed create/update showed the same unhelpful message regardless of
+   cause.** Drizzle's own `Error.message` for a failed query is the SQL text
+   and bound params, not the reason — the actual driver error (e.g. `NOT
+   NULL constraint failed: participants.consent_participant`, or a foreign
+   key violation from a typo'd `participant_id`) is one level down, in
+   `.cause`. Every `/api/admin/*` route now goes through a shared
+   `describeError()` in `admin-crud.ts` that unwraps `.cause` first, so the
+   form's error banner shows the organizer something they can actually act
+   on.
+
+**Verified two ways.** The CRUD engine itself (list/filter/search/sort/
+pagination, get-one, create, update — including read-only protection in
+both directions —, delete, boolean/currency/nullable coercion, unknown-
+resource handling) was tested directly against the database, bypassing
+both HTTP and the auth gate entirely.
+
+The actual pages and components are gated by `proxy.ts`'s real Firebase
+session-cookie check, which this sandbox's missing ADC can't satisfy — so
+they were verified by temporarily short-circuiting `proxy.ts` behind an
+`if (process.env.TEMP_DISABLE_ADMIN_AUTH === "1")` guard (never committed;
+confirmed with `git diff` before and after), rebuilding for production (the
+dev server's HMR WebSocket fails in this sandbox the same way it did in
+milestone 4, degrading hydration), and driving the real `ResourceTable` /
+`ResourceForm` / detail pages with Playwright: create → detail redirect →
+joined related-data section → read-only field locked in edit mode → edit
+persists across reload → list shows the row → search and per-column filter
+both narrow it → sortable header toggles → delete redirects to the list and
+the row 404s afterward → the other four resources' list pages all render →
+an unknown resource slug 404s. Then the bypass was reverted (`git diff`
+confirmed clean), the database was reset, and the app was rebuilt from a
+clean checkout — re-confirming with plain `curl` that every new route
+still correctly returns 401 (API) or redirects to `/admin/login` (page)
+with no session cookie, exactly as it did before this milestone touched
+anything.
+
 ## Production build
 
 `next.config.ts` keeps `output: 'standalone'` as a local sanity check — it's
@@ -518,7 +611,7 @@ Working through the milestones in §18 of the technical plan.
 - [x] 6. Participation sign-up API route (multi-entry)
 - [x] 7. Signed upload URL flow
 - [x] 8. Server-side validation (age, duplicate, fee, file)
-- [ ] 9. Reusable admin CRUD table + all resources behind auth
+- [x] 9. Reusable admin CRUD table + all resources behind auth
 - [ ] 10. UPI statement CSV reconciliation
 - [ ] 11. Scoring and rank computation
 - [ ] 12. WhatsApp message text + manual send log
